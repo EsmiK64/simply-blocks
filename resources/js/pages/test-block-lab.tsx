@@ -1,14 +1,20 @@
 import { Head } from '@inertiajs/react';
-import { Blocks, Code2, Play, Terminal, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { Blocks, Code2, Play, Terminal, Trash2, Monitor } from 'lucide-react';
+import { useState, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import BlockWorkspace from '@/blocks/BlockWorkspace';
+import StageComponent, { useStageState, addSprite } from '@/stage/StageComponent';
+import SpritePanel from '@/stage/SpritePanel';
+import { SpriteState } from '@/stage/SpriteRuntime';
 
 export default function TestBlockLab() {
     const [output, setOutput] = useState<string[]>([]);
     const [isRunning, setIsRunning] = useState(false);
+    const [stageState, setStageState] = useStageState();
+    const [selectedSpriteId, setSelectedSpriteId] = useState<string | null>(null);
+    const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0 });
 
     const handleRun = () => {
         setIsRunning(true);
@@ -19,6 +25,31 @@ export default function TestBlockLab() {
     const handleClear = () => {
         setOutput([]);
     };
+
+    const handleAddSprite = useCallback(() => {
+        const name = `Sprite${stageState.sprites.filter(s => !s.isStage).length + 1}`;
+        addSprite(setStageState, name);
+    }, [stageState.sprites, setStageState]);
+
+    const handleDeleteSprite = useCallback((id: string) => {
+        setStageState(prev => ({
+            ...prev,
+            sprites: prev.sprites.filter(s => s.id !== id),
+        }));
+        if (selectedSpriteId === id) setSelectedSpriteId(null);
+    }, [selectedSpriteId, setStageState]);
+
+    const handleSpritePropertyChange = useCallback(
+        (id: string, prop: keyof SpriteState, value: unknown) => {
+            setStageState(prev => ({
+                ...prev,
+                sprites: prev.sprites.map(s =>
+                    s.id === id ? { ...s, [prop]: value } : s
+                ),
+            }));
+        },
+        [setStageState]
+    );
 
     return (
         <>
@@ -51,7 +82,7 @@ export default function TestBlockLab() {
                     </div>
                 </header>
 
-                <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.25fr_1fr]">
+                <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
                     <Card className="flex min-h-[24rem] flex-col overflow-hidden">
                         <CardHeader className="border-b px-4 py-3">
                             <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -65,21 +96,38 @@ export default function TestBlockLab() {
                     </Card>
 
                     <div className="flex min-h-0 flex-col gap-4">
-                        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                            <CardHeader className="border-b px-4 py-3">
-                                <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                                    <Code2 className="size-4 text-primary" />
-                                    Python
+                        {/* Stage */}
+                        <Card className="flex flex-col overflow-hidden">
+                            <CardHeader className="border-b px-4 py-2">
+                                <CardTitle className="flex items-center justify-between gap-2 text-sm font-medium">
+                                    <span className="flex items-center gap-2">
+                                        <Monitor className="size-4 text-primary" />
+                                        Stage
+                                    </span>
+                                    <span className="text-xs font-normal text-muted-foreground font-mono">
+                                        x:{mouseCoords.x.toFixed(0)} y:{mouseCoords.y.toFixed(0)}
+                                    </span>
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="flex-1 overflow-auto p-4">
-                                <pre className="font-mono text-sm text-muted-foreground">
-                                    # Python code generation coming soon...
-                                </pre>
+                            <CardContent className="p-2">
+                                <StageComponent
+                                    state={stageState}
+                                    onMouseMove={(x, y) => setMouseCoords({ x, y })}
+                                    onSpriteClick={setSelectedSpriteId}
+                                />
                             </CardContent>
+                            <SpritePanel
+                                stageState={stageState}
+                                selectedSpriteId={selectedSpriteId}
+                                onSelectSprite={setSelectedSpriteId}
+                                onAddSprite={handleAddSprite}
+                                onDeleteSprite={handleDeleteSprite}
+                                onSpritePropertyChange={handleSpritePropertyChange}
+                            />
                         </Card>
 
-                        <Card className="flex min-h-[12rem] flex-col overflow-hidden">
+                        {/* Console */}
+                        <Card className="flex min-h-[8rem] flex-1 flex-col overflow-hidden">
                             <CardHeader className="border-b px-4 py-3">
                                 <CardTitle className="flex items-center gap-2 text-sm font-medium">
                                     <Terminal className="size-4 text-primary" />

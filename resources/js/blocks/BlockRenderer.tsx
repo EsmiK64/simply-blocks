@@ -1,13 +1,22 @@
+import React from 'react';
 import { BlockDefinition, BlockInstance } from './types';
 import { getBlockDefinition } from './definitions';
+
+const KEY_OPTIONS = [
+    'space', 'up arrow', 'down arrow', 'left arrow', 'right arrow',
+    'any', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+].map(k => ({ label: k, value: k }));
 
 interface BlockRendererProps {
     block: BlockInstance;
     isDragging?: boolean;
     onFieldChange?: (fieldName: string, value: string | number | boolean) => void;
+    onInputRemove?: (blockId: string, slotName: string) => void;
 }
 
-export default function BlockRenderer({ block, isDragging = false, onFieldChange }: BlockRendererProps) {
+export default function BlockRenderer({ block, isDragging = false, onFieldChange, onInputRemove }: BlockRendererProps) {
     const def = block.definition;
     const color = def.color;
 
@@ -184,14 +193,38 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                 } else if (placeholder.type === 'input') {
                     const inputBlock = block.inputs[placeholder.name];
                     if (inputBlock) {
+                        const isBoolean = (inputBlock.definition.shape ?? 'stack') === 'boolean';
                         parts.push(
-                            <div key={placeholder.name} className="inline-block align-middle scale-90 origin-left">
-                                <BlockRenderer block={inputBlock} onFieldChange={onFieldChange} />
+                            <div
+                                key={placeholder.name}
+                                className="inline-block align-middle"
+                                data-connected-input={placeholder.name}
+                                data-parent-block-id={block.id}
+                                onMouseDown={(e) => {
+                                    e.stopPropagation();
+                                    onInputRemove?.(block.id, placeholder.name);
+                                }}
+                            >
+                                <BlockRenderer block={inputBlock} onFieldChange={onFieldChange} onInputRemove={onInputRemove} />
                             </div>
                         );
                     } else {
+                        // Empty input slot — shape hint matches what can snap in
+                        const slotDef = def.inputs ? def.inputs[def.inputs.indexOf(placeholder.name)] : null;
                         parts.push(
-                            <span key={placeholder.name} className="inline-block w-12 h-6 bg-white/30 rounded mx-1 align-middle" />
+                            <span
+                                key={placeholder.name}
+                                data-input-slot={placeholder.name}
+                                data-parent-block-id={block.id}
+                                className="inline-flex items-center justify-center align-middle mx-0.5 text-white/60 text-[9px] select-none"
+                                style={{
+                                    width: 40,
+                                    height: 20,
+                                    background: 'rgba(0,0,0,0.2)',
+                                    borderRadius: 10,
+                                    cursor: 'default',
+                                }}
+                            />
                         );
                     }
                 }
@@ -239,9 +272,84 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                     ))}
                 </select>
             );
+        } else if (field.type === 'color') {
+            return (
+                <input
+                    type="color"
+                    value={String(value) || '#ff0000'}
+                    className="w-8 h-6 rounded cursor-pointer border-0 bg-transparent"
+                    onChange={(e) => onFieldChange?.(field.name, e.target.value)}
+                />
+            );
+        } else if (field.type === 'sprite' || field.type === 'broadcast' || field.type === 'effect' || field.type === 'mathop' || field.type === 'stopOption') {
+            return (
+                <select
+                    className="w-20 h-6 rounded bg-white text-black text-xs px-1"
+                    value={String(value)}
+                    onChange={(e) => onFieldChange?.(field.name, e.target.value)}
+                >
+                    {field.options?.map((opt: any) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    )) ?? <option value={String(value)}>{String(value)}</option>}
+                </select>
+            );
+        } else if (field.type === 'key') {
+            return (
+                <select
+                    className="w-20 h-6 rounded bg-white text-black text-xs px-1"
+                    value={String(value)}
+                    onChange={(e) => onFieldChange?.(field.name, e.target.value)}
+                >
+                    {(field.options ?? KEY_OPTIONS).map((opt: any) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
+            );
         }
         return String(value);
     };
+
+    const shape = def.shape ?? 'stack';
+
+    // ── Reporter block (oval) ──────────────────────────────────────────
+    if (shape === 'reporter') {
+        const rw = 80; const rh = 28;
+        return (
+            <div className="relative select-none inline-block" style={{ width: rw, height: rh, opacity: isDragging ? 0.8 : 1, cursor: 'grab' }}>
+                <svg width={rw} height={rh} className="absolute inset-0 pointer-events-none" style={{ transform: 'translate(1px,1px)' }}>
+                    <rect x="0" y="0" width={rw} height={rh} rx={rh / 2} ry={rh / 2} fill="rgba(0,0,0,0.15)" />
+                </svg>
+                <svg width={rw} height={rh} className="absolute inset-0 pointer-events-none">
+                    <rect x="0" y="0" width={rw} height={rh} rx={rh / 2} ry={rh / 2} fill={color} stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center px-3 text-white text-xs font-medium gap-1"
+                    style={{ fontFamily: "'Instrument Sans', ui-sans-serif, system-ui, sans-serif" }}>
+                    {renderLabelParts()}
+                </div>
+            </div>
+        );
+    }
+
+    // ── Boolean block (hexagon / pointed oval) ─────────────────────────
+    if (shape === 'boolean') {
+        const bw = 80; const bh2 = 28; const pt = 8;
+        // Hexagon path: left point, top-left corner, top-right corner, right point, bottom-right, bottom-left
+        const hexPath = `M ${pt},0 L ${bw - pt},0 L ${bw},${bh2 / 2} L ${bw - pt},${bh2} L ${pt},${bh2} L 0,${bh2 / 2} Z`;
+        return (
+            <div className="relative select-none inline-block" style={{ width: bw, height: bh2, opacity: isDragging ? 0.8 : 1, cursor: 'grab' }}>
+                <svg width={bw} height={bh2} className="absolute inset-0 pointer-events-none" style={{ transform: 'translate(1px,1px)' }}>
+                    <path d={hexPath} fill="rgba(0,0,0,0.15)" />
+                </svg>
+                <svg width={bw} height={bh2} className="absolute inset-0 pointer-events-none">
+                    <path d={hexPath} fill={color} stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center px-3 text-white text-xs font-medium gap-1"
+                    style={{ fontFamily: "'Instrument Sans', ui-sans-serif, system-ui, sans-serif" }}>
+                    {renderLabelParts()}
+                </div>
+            </div>
+        );
+    }
 
     const tabHeight = def.hasTab ? 8 : 0;
     const totalHeight = def.hasContainer
