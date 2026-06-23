@@ -251,7 +251,7 @@ export async function parseSB3File(file: File): Promise<ParsedSB3> {
                 : ext === 'wav' ? 'audio/wav'
                     : ext === 'mp3' ? 'audio/mpeg'
                         : 'application/octet-stream';
-        assetBlobs.set(assetId, new Blob([data.buffer as ArrayBuffer], { type: mime }));
+        assetBlobs.set(assetId, new Blob([data as Uint8Array<ArrayBuffer>], { type: mime }));
     }
 
     // Parse each target

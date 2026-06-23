@@ -20,13 +20,20 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
     const def = block.definition;
     const color = def.color;
 
+    const calcBlockHeight = (block: BlockInstance): number => {
+        if (block.definition.hasContainer) {
+            const innerHeight = Math.max(calcSectionHeight(block.children), 60);
+            const tabHeight = block.definition.hasTab ? 8 : 0;
+            return 40 + innerHeight + 40 + tabHeight;
+        }
+        return block.definition.hasTab ? 48 : 40;
+    };
+
     const calcSectionHeight = (children: BlockInstance[]) => {
         if (children.length === 0) return 60;
         let h = 0;
         children.forEach(child => {
-            const ch = child.definition.hasContainer
-                ? 40 + 60 + 40
-                : (child.definition.hasTab ? 48 : 40);
+            const ch = calcBlockHeight(child);
             const overlap = child.definition.hasTab ? 8 : 0;
             h += ch - overlap;
         });
@@ -162,6 +169,8 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
         // Sort fields and inputs by their position in the label
         const allPlaceholders: { index: number; type: 'field' | 'input'; name: string }[] = [];
 
+        const fieldCount = def.fields?.length ?? 0;
+
         if (def.fields) {
             def.fields.forEach((field, idx) => {
                 allPlaceholders.push({ index: idx + 1, type: 'field', name: field.name });
@@ -170,7 +179,7 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
 
         if (def.inputs) {
             def.inputs.forEach((inputName, idx) => {
-                allPlaceholders.push({ index: idx + 1, type: 'input', name: inputName });
+                allPlaceholders.push({ index: fieldCount + idx + 1, type: 'input', name: inputName });
             });
         }
 
@@ -193,7 +202,6 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                 } else if (placeholder.type === 'input') {
                     const inputBlock = block.inputs[placeholder.name];
                     if (inputBlock) {
-                        const isBoolean = (inputBlock.definition.shape ?? 'stack') === 'boolean';
                         parts.push(
                             <div
                                 key={placeholder.name}
@@ -202,6 +210,11 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                                 data-parent-block-id={block.id}
                                 onMouseDown={(e) => {
                                     e.stopPropagation();
+                                    const target = e.target as Node;
+                                    const targetEl = target instanceof Element ? target : target.parentElement;
+                                    if (targetEl?.closest('input, select, textarea, [contenteditable]')) {
+                                        return;
+                                    }
                                     onInputRemove?.(block.id, placeholder.name);
                                 }}
                             >
@@ -210,7 +223,6 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                         );
                     } else {
                         // Empty input slot — shape hint matches what can snap in
-                        const slotDef = def.inputs ? def.inputs[def.inputs.indexOf(placeholder.name)] : null;
                         parts.push(
                             <span
                                 key={placeholder.name}

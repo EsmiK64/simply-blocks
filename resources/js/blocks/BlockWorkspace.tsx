@@ -13,7 +13,7 @@ export default function BlockWorkspace({ onCodeChange }: BlockWorkspaceProps) {
     const [draggingBlock, setDraggingBlock] = useState<BlockInstance | null>(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [initialPositions, setInitialPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
-    const [snapPreview, setSnapPreview] = useState<{ x: number; y: number; visible: boolean; type?: 'stack' | 'nest' | 'insert' | 'input' }>({ x: 0, y: 0, visible: false });
+    const [snapPreview, setSnapPreview] = useState<{ x: number; y: number; visible: boolean; type?: 'stack' | 'nest' | 'insert' | 'input'; targetId?: string; insertAfterId?: string }>({ x: 0, y: 0, visible: false });
     // For input-slot snapping: which block+slot the dragged reporter should snap into
     const inputSnapRef = useRef<{ parentId: string; slotName: string } | null>(null);
     const initialPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
@@ -157,41 +157,29 @@ export default function BlockWorkspace({ onCodeChange }: BlockWorkspaceProps) {
         return null;
     }, []);
 
-    // Helper: walk all input blocks recursively and collect them as flat ids
-    const collectInputIds = useCallback((block: BlockInstance, ids: Set<string>) => {
-        for (const inputBlock of Object.values(block.inputs)) {
-            if (inputBlock) {
-                ids.add(inputBlock.id);
-                collectInputIds(inputBlock, ids);
-            }
-        }
-    }, []);
-
-    // Scan all input slots in all blocks and find the nearest one to a point
-    const findNearestInputSlot = useCallback((px: number, py: number, allBlocks: BlockInstance[], excludeId: string) => {
+    // Scan all rendered empty input slots and find the nearest one to a canvas point
+    const findNearestInputSlot = useCallback((px: number, py: number, excludeId: string): { parentId: string; slotName: string; dist: number } | null => {
+        if (!canvasRef.current) return null;
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        const slots = canvasRef.current.querySelectorAll<HTMLElement>('[data-input-slot]');
         let best: { parentId: string; slotName: string; dist: number } | null = null;
         const INPUT_SNAP_RADIUS = 60;
 
-        const scanBlock = (b: BlockInstance) => {
-            if (!b.definition.inputs) return;
-            b.definition.inputs.forEach(slotName => {
-                // Only snap into empty slots
-                if (b.inputs[slotName]) return;
-                // Approximate slot position: block x + some offset based on label
-                const slotX = b.x + 30;
-                const slotY = b.y + 20;
-                const dist = Math.sqrt((px - slotX) ** 2 + (py - slotY) ** 2);
-                if (dist < INPUT_SNAP_RADIUS && (!best || dist < best.dist)) {
-                    best = { parentId: b.id, slotName, dist };
-                }
-            });
-            // Recurse into children
-            b.children.forEach(scanBlock);
-            b.elseChildren?.forEach(scanBlock);
-        };
+        slots.forEach(slot => {
+            const parentId = slot.dataset.parentBlockId;
+            const slotName = slot.dataset.inputSlot;
+            if (!parentId || !slotName || parentId === excludeId) return;
 
-        allBlocks.forEach(b => { if (b.id !== excludeId) scanBlock(b); });
-        return best as { parentId: string; slotName: string; dist: number } | null;
+            const rect = slot.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2 - canvasRect.left;
+            const cy = rect.top + rect.height / 2 - canvasRect.top;
+            const dist = Math.sqrt((px - cx) ** 2 + (py - cy) ** 2);
+            if (dist < INPUT_SNAP_RADIUS && (!best || dist < best.dist)) {
+                best = { parentId, slotName, dist };
+            }
+        });
+
+        return best;
     }, []);
 
     const handleBlockMouseDown = useCallback((e: React.MouseEvent, block: BlockInstance) => {
@@ -255,11 +243,11 @@ export default function BlockWorkspace({ onCodeChange }: BlockWorkspaceProps) {
                         if (idx !== -1) updated[idx] = { ...b, x, y };
                         if (b.next) {
                             const height = calculateBlockHeight(b);
-                            recalculateDisconnected(b.next, x, y + height - 10);
+                            recalculateDisconnected(b.next, x, y + height - 8);
                         }
                     };
                     const height = calculateBlockHeight(block);
-                    recalculateDisconnected(oldNext, block.x, block.y + height - 10);
+                    recalculateDisconnected(oldNext, block.x, block.y + height - 8);
                 }
             }
 
@@ -367,17 +355,14 @@ export default function BlockWorkspace({ onCodeChange }: BlockWorkspaceProps) {
 
             // For reporter/boolean: check input-slot proximity first
             if (isReporterLike) {
-                const dragged = updated.find(b => b.id === draggingBlock.id);
-                if (dragged) {
-                    const inputSnap = findNearestInputSlot(dragged.x + 20, dragged.y + 10, updated, draggingBlock.id);
-                    if (inputSnap) {
-                        // Find parent block position for snap preview
-                        const parentBlock = updated.find(b => b.id === inputSnap.parentId);
-                        if (parentBlock) {
-                            inputSnapRef.current = { parentId: inputSnap.parentId, slotName: inputSnap.slotName };
-                            setSnapPreview({ x: parentBlock.x + 10, y: parentBlock.y + 10, visible: true, type: 'input' });
-                            return updated;
-                        }
+                const inputSnap = findNearestInputSlot(e.clientX - rect.left, e.clientY - rect.top, draggingBlock.id);
+                if (inputSnap) {
+                    // Find parent block position for snap preview
+                    const parentBlock = updated.find(b => b.id === inputSnap.parentId);
+                    if (parentBlock) {
+                        inputSnapRef.current = { parentId: inputSnap.parentId, slotName: inputSnap.slotName };
+                        setSnapPreview({ x: parentBlock.x + 10, y: parentBlock.y + 10, visible: true, type: 'input', targetId: undefined, insertAfterId: undefined });
+                        return updated;
                     }
                 }
                 inputSnapRef.current = null;
@@ -398,14 +383,21 @@ export default function BlockWorkspace({ onCodeChange }: BlockWorkspaceProps) {
                     snapX = nearestBlock.x;
                     snapY = nearestBlock.y + calculateBlockHeight(nearestBlock) - 8;
                 }
-                setSnapPreview({ x: snapX, y: snapY, visible: true, type: snapType as any });
+                setSnapPreview({
+                    x: snapX,
+                    y: snapY,
+                    visible: true,
+                    type: snapType,
+                    targetId: nearestBlock.id,
+                    insertAfterId: snapType === 'insert' ? insertAfterBlock?.id : undefined,
+                });
             } else if (!isReporterLike) {
-                setSnapPreview({ x: 0, y: 0, visible: false });
+                setSnapPreview({ x: 0, y: 0, visible: false, targetId: undefined, insertAfterId: undefined });
             }
 
             return updated;
         });
-    }, [draggingBlock, dragOffset, getConnectedBlocks, findNearestInputSlot]);
+    }, [draggingBlock, dragOffset, findNearestInputSlot]);
 
     const handleMouseUp = useCallback(() => {
         if (!draggingBlock) return;
@@ -436,129 +428,65 @@ export default function BlockWorkspace({ onCodeChange }: BlockWorkspaceProps) {
             inputSnapRef.current = null;
             setDraggingBlock(null);
             setInitialPositions(new Map());
-            setSnapPreview({ x: 0, y: 0, visible: false });
+            setSnapPreview({ x: 0, y: 0, visible: false, targetId: undefined, insertAfterId: undefined });
             return;
         }
 
         // Use the snap preview position if visible
-        if (snapPreview.visible) {
+        if (snapPreview.visible && snapPreview.targetId) {
             setBlocks(prev => {
                 const updated: BlockInstance[] = [...prev];
                 const draggedIndex = updated.findIndex(b => b.id === draggingBlock.id);
                 if (draggedIndex === -1) return prev;
 
-                const draggedBlock = updated[draggedIndex];
+                let newDragged = { ...updated[draggedIndex] };
 
-                // Find nearest block to snap to
-                let nearestBlock: BlockInstance | null = null;
-                let minDistance = 50;
-                let snapType: 'stack' | 'nest' | 'insert' | null = null;
-                let insertAfterBlock: BlockInstance | null = null;
-
-                for (const block of updated) {
-                    if (block.id === draggingBlock.id) continue;
-
-                    const dx = block.x - draggedBlock.x;
-                    const dy = block.y - draggedBlock.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    // Special handling for container blocks - check if inside container area
-                    if (block.definition.hasContainer) {
-                        const blockHeight = calculateBlockHeight(block);
-                        const containerTop = block.y + 40;
-                        const containerBottom = block.y + blockHeight;
-                        const horizontallyAligned = Math.abs(draggedBlock.x - block.x) < 100;
-
-                        if (horizontallyAligned && draggedBlock.y > containerTop && draggedBlock.y < containerBottom) {
-                            // Block is inside container - prioritize this over distance check
-                            nearestBlock = block;
-                            snapType = 'nest';
-                            minDistance = 0; // Force this to be selected
-                            break;
-                        }
-                    }
-
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        nearestBlock = block;
-
-                        if (block.definition.hasContainer) {
-                            const blockHeight = calculateBlockHeight(block);
-                            const containerTop = block.y + 40;
-                            const containerBottom = block.y + blockHeight;
-                            // Check if dragged block is inside the container area
-                            // More lenient check: if Y is in range and X is reasonably close
-                            const horizontallyAligned = Math.abs(draggedBlock.x - block.x) < 100;
-                            if (horizontallyAligned && draggedBlock.y > containerTop && draggedBlock.y < containerBottom) {
-                                snapType = 'nest';
-                            } else {
-                                snapType = 'stack';
-                            }
-                        } else {
-                            const blockHeight = calculateBlockHeight(block);
-                            const tabHeight = block.definition.hasTab ? 8 : 0;
-                            const insertZoneTop = block.y + blockHeight / 2;
-                            const insertZoneBottom = block.y + blockHeight + tabHeight;
-
-                            if (draggedBlock.y > insertZoneTop && draggedBlock.y < insertZoneBottom) {
-                                snapType = 'insert';
-                                insertAfterBlock = block;
-                            } else {
-                                snapType = 'stack';
-                            }
-                        }
-                    }
-                }
-
-                if (nearestBlock && snapType) {
-                    // Update the connection first
-                    if (snapType === 'nest' && nearestBlock.definition.hasContainer) {
-                        // Remove from previous parent if any
-                        const parentIdx = updated.findIndex(b => b.children.some(c => c.id === draggingBlock.id));
-                        if (parentIdx !== -1) {
-                            updated[parentIdx].children = updated[parentIdx].children.filter(c => c.id !== draggingBlock.id);
-                        }
-                        // Add to children
-                        nearestBlock.children = [...nearestBlock.children, updated[draggedIndex]];
-                    } else if (snapType === 'insert' && insertAfterBlock) {
-                        // Remove from previous parent if any
-                        const parentIdx = updated.findIndex(b => b.children.some(c => c.id === draggingBlock.id));
-                        if (parentIdx !== -1) {
-                            updated[parentIdx].children = updated[parentIdx].children.filter(c => c.id !== draggingBlock.id);
-                        }
-                        // Insert in the middle of the stack
-                        const oldNext = insertAfterBlock.next;
-                        insertAfterBlock.next = updated[draggedIndex];
-                        updated[draggedIndex].next = oldNext;
-                    } else {
-                        // Remove from previous parent if any
-                        const parentIdx = updated.findIndex(b => b.children.some(c => c.id === draggingBlock.id));
-                        if (parentIdx !== -1) {
-                            updated[parentIdx].children = updated[parentIdx].children.filter(c => c.id !== draggingBlock.id);
-                        }
-                        // Link the blocks
-                        nearestBlock.next = updated[draggedIndex];
-                    }
-
-                    // Move to snap position
-                    updated[draggedIndex] = {
-                        ...updated[draggedIndex],
-                        x: snapPreview.x,
-                        y: snapPreview.y,
+                // Remove from previous parent if any
+                const parentIdx = updated.findIndex(b => b.children.some(c => c.id === draggingBlock.id));
+                if (parentIdx !== -1) {
+                    updated[parentIdx] = {
+                        ...updated[parentIdx],
+                        children: updated[parentIdx].children.filter(c => c.id !== draggingBlock.id),
                     };
-
-                    // Recalculate all positions in the stack
-                    return recalculateStackPositions(updated[draggedIndex], updated);
                 }
 
-                return updated;
+                const snapType = snapPreview.type;
+                const targetId = snapPreview.targetId;
+                const insertAfterId = snapPreview.insertAfterId;
+
+                if (snapType === 'nest') {
+                    const targetIdx = updated.findIndex(b => b.id === targetId);
+                    if (targetIdx !== -1) {
+                        updated[targetIdx] = {
+                            ...updated[targetIdx],
+                            children: [...updated[targetIdx].children, newDragged],
+                        };
+                    }
+                } else if (snapType === 'insert' && insertAfterId) {
+                    const insertIdx = updated.findIndex(b => b.id === insertAfterId);
+                    if (insertIdx !== -1) {
+                        const oldNext = updated[insertIdx].next;
+                        updated[insertIdx] = { ...updated[insertIdx], next: newDragged };
+                        newDragged = { ...newDragged, next: oldNext };
+                    }
+                } else if (targetId) {
+                    const targetIdx = updated.findIndex(b => b.id === targetId);
+                    if (targetIdx !== -1) {
+                        updated[targetIdx] = { ...updated[targetIdx], next: newDragged };
+                    }
+                }
+
+                newDragged = { ...newDragged, x: snapPreview.x, y: snapPreview.y };
+                updated[draggedIndex] = newDragged;
+
+                return recalculateStackPositions(newDragged, updated);
             });
         }
 
         inputSnapRef.current = null;
         setDraggingBlock(null);
         setInitialPositions(new Map());
-        setSnapPreview({ x: 0, y: 0, visible: false });
+        setSnapPreview({ x: 0, y: 0, visible: false, targetId: undefined, insertAfterId: undefined });
     }, [draggingBlock, snapPreview, recalculateStackPositions]);
 
     // Called when user mousedowns on a reporter block that's inside an input slot
@@ -614,8 +542,9 @@ export default function BlockWorkspace({ onCodeChange }: BlockWorkspaceProps) {
 
     const groupedBlocks = BLOCK_DEFINITIONS.reduce((acc, def) => {
         if (!acc[def.category]) acc[def.category] = [];
-        // Avoid duplicates (legacy aliases may repeat)
-        if (!acc[def.category].some(d => d.type === def.type)) {
+        // Avoid duplicates (legacy aliases share the same sb3Opcode)
+        const key = def.sb3Opcode ?? def.type;
+        if (!acc[def.category].some(d => (d.sb3Opcode ?? d.type) === key)) {
             acc[def.category].push(def);
         }
         return acc;

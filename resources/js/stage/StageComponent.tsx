@@ -14,24 +14,6 @@ interface StageComponentProps {
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
 
-function applyCSSFilters(effects: SpriteState['effects']): string {
-    const filters: string[] = [];
-    if (effects.brightness !== 0) {
-        const b = 1 + effects.brightness / 100;
-        filters.push(`brightness(${b})`);
-    }
-    if (effects.ghost !== 0) {
-        const opacity = 1 - Math.min(100, Math.max(0, effects.ghost)) / 100;
-        filters.push(`opacity(${opacity})`);
-    }
-    if (effects.pixelate !== 0) {
-        // approximate with blur (true pixelate needs canvas shader)
-        const r = Math.abs(effects.pixelate) / 10;
-        filters.push(`blur(${r}px)`);
-    }
-    return filters.join(' ') || 'none';
-}
-
 function renderSprite(
     ctx: CanvasRenderingContext2D,
     sprite: SpriteState,

@@ -208,7 +208,7 @@ export async function downloadAsSB3(
         });
     });
 
-    const blob = new Blob([zipped.buffer as ArrayBuffer], { type: 'application/zip' });
+    const blob = new Blob([zipped as Uint8Array<ArrayBuffer>], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
