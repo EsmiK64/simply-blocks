@@ -4,12 +4,15 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
+        "build:spa": "vite build --config vite.spa.config.ts",
         "build:ssr": "vite build && vite build --ssr",
         "dev": "vite",
+        "dev:spa": "vite --config vite.spa.config.ts",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
         "lint": "eslint . --fix",
         "lint:check": "eslint .",
+        "test": "bun test",
         "types:check": "tsc --noEmit"
     },
     "devDependencies": {

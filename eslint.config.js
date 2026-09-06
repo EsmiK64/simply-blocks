@@ -104,12 +104,15 @@ export default [
     },
     {
         ignores: [
+            '.agents/**',
+            'dist/**',
             'vendor',
             'node_modules',
             'public',
             'bootstrap/ssr',
             'tailwind.config.js',
             'vite.config.ts',
+            'vite.spa.config.ts',
             'resources/js/actions/**',
             'resources/js/components/ui/*',
             'resources/js/routes/**',
