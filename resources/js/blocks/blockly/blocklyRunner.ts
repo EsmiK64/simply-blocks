@@ -199,16 +199,92 @@ export async function executeBlocklyWorkspace(
                 }));
                 break;
             }
-            case 'looks_say':
-            case 'looks_sayforsecs': {
+            case 'looks_say': {
                 const msg = evalString(block, 'MESSAGE', 'Hello!');
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        isTarget(s)
+                            ? {
+                                  ...s,
+                                  bubble: msg
+                                      ? { type: 'say', text: msg }
+                                      : null,
+                              }
+                            : s,
+                    ),
+                }));
                 log(`[${time()}] [looks] Sprite says: "${msg}"`);
                 break;
             }
-            case 'looks_think':
+            case 'looks_sayforsecs': {
+                const msg = evalString(block, 'MESSAGE', 'Hello!');
+                const secs = Math.max(0.1, evalNumber(block, 'SECS', 2));
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        isTarget(s)
+                            ? {
+                                  ...s,
+                                  bubble: msg
+                                      ? { type: 'say', text: msg }
+                                      : null,
+                              }
+                            : s,
+                    ),
+                }));
+                log(`[${time()}] [looks] Sprite says: "${msg}" for ${secs}s`);
+                await new Promise((r) => setTimeout(r, secs * 1000));
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        isTarget(s) ? { ...s, bubble: null } : s,
+                    ),
+                }));
+                break;
+            }
+            case 'looks_think': {
+                const msg = evalString(block, 'MESSAGE', 'Hmm...');
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        isTarget(s)
+                            ? {
+                                  ...s,
+                                  bubble: msg
+                                      ? { type: 'think', text: msg }
+                                      : null,
+                              }
+                            : s,
+                    ),
+                }));
+                log(`[${time()}] [looks] Sprite thinks: "${msg}"`);
+                break;
+            }
             case 'looks_thinkforsecs': {
                 const msg = evalString(block, 'MESSAGE', 'Hmm...');
-                log(`[${time()}] [looks] Sprite thinks: "${msg}"`);
+                const secs = Math.max(0.1, evalNumber(block, 'SECS', 2));
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        isTarget(s)
+                            ? {
+                                  ...s,
+                                  bubble: msg
+                                      ? { type: 'think', text: msg }
+                                      : null,
+                              }
+                            : s,
+                    ),
+                }));
+                log(`[${time()}] [looks] Sprite thinks: "${msg}" for ${secs}s`);
+                await new Promise((r) => setTimeout(r, secs * 1000));
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        isTarget(s) ? { ...s, bubble: null } : s,
+                    ),
+                }));
                 break;
             }
             case 'looks_show': {

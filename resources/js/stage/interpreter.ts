@@ -184,14 +184,105 @@ export async function executeBlocks(
                 }));
                 break;
             }
-            case 'looks_sayforsecs':
+            case 'looks_sayforsecs': {
+                const msg = evalString(block, 'MESSAGE', 'Hello!');
+                const secs = Math.max(0.1, evalInput(block, 'SECS', 2));
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        s.id === targetSpriteId ||
+                        (!targetSpriteId && !s.isStage)
+                            ? {
+                                  ...s,
+                                  bubble: msg
+                                      ? { type: 'say', text: msg }
+                                      : null,
+                              }
+                            : s,
+                    ),
+                }));
+                log(
+                    `[${timestamp()}] [looks] Sprite says: "${msg}" for ${secs}s`,
+                );
+                await new Promise((r) => setTimeout(r, secs * 1000));
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        s.id === targetSpriteId ||
+                        (!targetSpriteId && !s.isStage)
+                            ? { ...s, bubble: null }
+                            : s,
+                    ),
+                }));
+                break;
+            }
             case 'looks_say': {
                 const msg = evalString(block, 'MESSAGE', 'Hello!');
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        s.id === targetSpriteId ||
+                        (!targetSpriteId && !s.isStage)
+                            ? {
+                                  ...s,
+                                  bubble: msg
+                                      ? { type: 'say', text: msg }
+                                      : null,
+                              }
+                            : s,
+                    ),
+                }));
                 log(`[${timestamp()}] [looks] Sprite says: "${msg}"`);
+                break;
+            }
+            case 'looks_thinkforsecs': {
+                const msg = evalString(block, 'MESSAGE', 'Hmm...');
+                const secs = Math.max(0.1, evalInput(block, 'SECS', 2));
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        s.id === targetSpriteId ||
+                        (!targetSpriteId && !s.isStage)
+                            ? {
+                                  ...s,
+                                  bubble: msg
+                                      ? { type: 'think', text: msg }
+                                      : null,
+                              }
+                            : s,
+                    ),
+                }));
+                log(
+                    `[${timestamp()}] [looks] Sprite thinks: "${msg}" for ${secs}s`,
+                );
+                await new Promise((r) => setTimeout(r, secs * 1000));
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        s.id === targetSpriteId ||
+                        (!targetSpriteId && !s.isStage)
+                            ? { ...s, bubble: null }
+                            : s,
+                    ),
+                }));
                 break;
             }
             case 'looks_think': {
                 const msg = evalString(block, 'MESSAGE', 'Hmm...');
+                setStageState((prev) => ({
+                    ...prev,
+                    sprites: prev.sprites.map((s) =>
+                        s.id === targetSpriteId ||
+                        (!targetSpriteId && !s.isStage)
+                            ? {
+                                  ...s,
+                                  bubble: msg
+                                      ? { type: 'think', text: msg }
+                                      : null,
+                              }
+                            : s,
+                    ),
+                }));
                 log(`[${timestamp()}] [looks] Sprite thinks: "${msg}"`);
                 break;
             }

@@ -176,6 +176,18 @@ export default function TestBlockLab() {
         [setStageState],
     );
 
+    const handleSpriteMove = useCallback(
+        (id: string, x: number, y: number) => {
+            setStageState((prev) => ({
+                ...prev,
+                sprites: prev.sprites.map((s) =>
+                    s.id === id ? { ...s, x, y } : s,
+                ),
+            }));
+        },
+        [setStageState],
+    );
+
     // Serialized AST representation
     const sb3Json = useMemo(() => {
         void blockCount;
@@ -325,8 +337,10 @@ export default function TestBlockLab() {
                         <div className="flex items-center justify-center bg-background/50 p-3">
                             <StageComponent
                                 state={stageState}
+                                selectedSpriteId={selectedSpriteId}
                                 onMouseMove={(x, y) => setMouseCoords({ x, y })}
                                 onSpriteClick={setSelectedSpriteId}
+                                onSpriteMove={handleSpriteMove}
                             />
                         </div>
 

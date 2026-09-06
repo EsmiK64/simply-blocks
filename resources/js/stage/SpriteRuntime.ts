@@ -18,6 +18,11 @@ export interface Sound {
     dataUrl: string | null;
 }
 
+export interface SpeechBubble {
+    type: 'say' | 'think';
+    text: string;
+}
+
 export type GraphicEffect =
     | 'color'
     | 'fisheye'
@@ -31,6 +36,7 @@ export interface SpriteState {
     id: string;
     name: string;
     isStage: boolean;
+    color?: string;
 
     // Transform
     x: number;
@@ -42,6 +48,9 @@ export interface SpriteState {
     // Costumes
     costumes: Costume[];
     currentCostume: number; // 0-indexed
+
+    // Speech / thought bubble
+    bubble?: SpeechBubble | null;
 
     // Sounds
     sounds: Sound[];
@@ -71,6 +80,7 @@ export function createDefaultSprite(id: string, name: string): SpriteState {
         id,
         name,
         isStage: false,
+        color: '#FFAB19',
         x: 0,
         y: 0,
         direction: 90,
@@ -78,6 +88,7 @@ export function createDefaultSprite(id: string, name: string): SpriteState {
         visible: true,
         costumes: [],
         currentCostume: 0,
+        bubble: null,
         sounds: [],
         volume: 100,
         effects: {

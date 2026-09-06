@@ -49,6 +49,7 @@ describe('SpriteRuntime', () => {
             expect(sprite.costumes).toEqual([]);
             expect(sprite.effects.color).toBe(0);
             expect(sprite.effects.ghost).toBe(0);
+            expect(sprite.bubble).toBeNull();
         });
     });
 
@@ -154,6 +155,43 @@ describe('SpriteRuntime', () => {
             expect(updated.y).toBe(0);
             expect(updated.direction).toBe(180);
             expect(updated.visible).toBe(false);
+        });
+
+        it('executes looks_say and looks_think to set speech bubbles', async () => {
+            const sprite = createDefaultSprite('square-1', 'Square');
+            let stageState: StageState = {
+                width: 480,
+                height: 360,
+                sprites: [sprite],
+                tempo: 60,
+                videoTransparency: 50,
+                videoState: 'off',
+            };
+
+            const setStageState = (action: any) => {
+                stageState = typeof action === 'function' ? action(stageState) : action;
+            };
+
+            const logs: string[] = [];
+            const logFn = (msg: string) => logs.push(msg);
+
+            // say "Hello!"
+            const sayBlock = makeMockBlock('s1', 'looks_say', { MESSAGE: 'I am a movable square!' });
+            await executeBlocks([sayBlock], 'square-1', setStageState as any, logFn);
+
+            let updated = stageState.sprites.find(s => s.id === 'square-1')!;
+            expect(updated.bubble).toBeDefined();
+            expect(updated.bubble?.type).toBe('say');
+            expect(updated.bubble?.text).toBe('I am a movable square!');
+
+            // think "Thinking..."
+            const thinkBlock = makeMockBlock('t1', 'looks_think', { MESSAGE: 'Pondering...' });
+            await executeBlocks([thinkBlock], 'square-1', setStageState as any, logFn);
+
+            updated = stageState.sprites.find(s => s.id === 'square-1')!;
+            expect(updated.bubble).toBeDefined();
+            expect(updated.bubble?.type).toBe('think');
+            expect(updated.bubble?.text).toBe('Pondering...');
         });
     });
 });
