@@ -1,4 +1,17 @@
 import type { BlockInstance } from '@/blocks/types';
+import {
+    mutateTargetSprite,
+    updateTargetSprite,
+    moveSpriteSteps,
+    turnSpriteRight,
+    turnSpriteLeft,
+    setSpritePosition,
+    changeSpriteX,
+    changeSpriteY,
+    setSpriteBubble,
+    clearSpriteBubble,
+    setSpriteVisibility,
+} from './spriteActions';
 import type { StageState } from './SpriteRuntime';
 
 export interface ExecutionResult {
@@ -84,232 +97,145 @@ export async function executeBlocks(
                 break;
             case 'motion_movesteps': {
                 const steps = evalInput(block, 'STEPS', 10);
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) => {
-                        if (
-                            s.id !== targetSpriteId &&
-                            !(!targetSpriteId && !s.isStage)
-                        ) {
-                            return s;
-                        }
-
-                        const rad = ((s.direction - 90) * Math.PI) / 180;
-                        const nx = Math.min(
-                            240,
-                            Math.max(
-                                -240,
-                                Math.round(s.x + steps * Math.cos(rad)),
-                            ),
-                        );
-                        const ny = Math.min(
-                            180,
-                            Math.max(
-                                -180,
-                                Math.round(s.y - steps * Math.sin(rad)),
-                            ),
-                        );
-                        log(
-                            `[${timestamp()}] [motion] ${s.name} moved ${steps} steps -> (${nx}, ${ny})`,
-                        );
-
-                        return { ...s, x: nx, y: ny };
-                    }),
-                }));
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => moveSpriteSteps(s, steps),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'motion',
+                );
                 break;
             }
             case 'motion_turnright': {
                 const deg = evalInput(block, 'DEGREES', 15);
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) => {
-                        if (
-                            s.id !== targetSpriteId &&
-                            !(!targetSpriteId && !s.isStage)
-                        ) {
-                            return s;
-                        }
-
-                        const nd = Math.round((s.direction + deg) % 360);
-                        log(
-                            `[${timestamp()}] [motion] ${s.name} turned right ${deg}° -> ${nd}°`,
-                        );
-
-                        return { ...s, direction: nd };
-                    }),
-                }));
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => turnSpriteRight(s, deg),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'motion',
+                );
                 break;
             }
             case 'motion_turnleft': {
                 const deg = evalInput(block, 'DEGREES', 15);
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) => {
-                        if (
-                            s.id !== targetSpriteId &&
-                            !(!targetSpriteId && !s.isStage)
-                        ) {
-                            return s;
-                        }
-
-                        const nd = Math.round((s.direction - deg + 360) % 360);
-                        log(
-                            `[${timestamp()}] [motion] ${s.name} turned left ${deg}° -> ${nd}°`,
-                        );
-
-                        return { ...s, direction: nd };
-                    }),
-                }));
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => turnSpriteLeft(s, deg),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'motion',
+                );
                 break;
             }
             case 'motion_gotoxy': {
                 const gx = evalInput(block, 'X', 0);
                 const gy = evalInput(block, 'Y', 0);
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) => {
-                        if (
-                            s.id !== targetSpriteId &&
-                            !(!targetSpriteId && !s.isStage)
-                        ) {
-                            return s;
-                        }
-
-                        log(
-                            `[${timestamp()}] [motion] ${s.name} goto (${gx}, ${gy})`,
-                        );
-
-                        return { ...s, x: gx, y: gy };
-                    }),
-                }));
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => setSpritePosition(s, gx, gy),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'motion',
+                );
+                break;
+            }
+            case 'motion_changexby': {
+                const dx = evalInput(block, 'DX', 10);
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => changeSpriteX(s, dx),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'motion',
+                );
+                break;
+            }
+            case 'motion_changeyby': {
+                const dy = evalInput(block, 'DY', 10);
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => changeSpriteY(s, dy),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'motion',
+                );
+                break;
+            }
+            case 'looks_say': {
+                const msg = evalString(block, 'MESSAGE', 'Hello!');
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => setSpriteBubble(s, 'say', msg),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'looks',
+                );
                 break;
             }
             case 'looks_sayforsecs': {
                 const msg = evalString(block, 'MESSAGE', 'Hello!');
                 const secs = Math.max(0.1, evalInput(block, 'SECS', 2));
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) =>
-                        s.id === targetSpriteId ||
-                        (!targetSpriteId && !s.isStage)
-                            ? {
-                                  ...s,
-                                  bubble: msg
-                                      ? { type: 'say', text: msg }
-                                      : null,
-                              }
-                            : s,
-                    ),
-                }));
-                log(
-                    `[${timestamp()}] [looks] Sprite says: "${msg}" for ${secs}s`,
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => setSpriteBubble(s, 'say', msg),
+                    (cat, desc) =>
+                        log(`[${timestamp()}] [${cat}] ${desc} for ${secs}s`),
+                    'looks',
                 );
                 await new Promise((r) => setTimeout(r, secs * 1000));
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) =>
-                        s.id === targetSpriteId ||
-                        (!targetSpriteId && !s.isStage)
-                            ? { ...s, bubble: null }
-                            : s,
-                    ),
-                }));
+                setStageState((prev) =>
+                    updateTargetSprite(prev, targetSpriteId, clearSpriteBubble),
+                );
                 break;
             }
-            case 'looks_say': {
-                const msg = evalString(block, 'MESSAGE', 'Hello!');
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) =>
-                        s.id === targetSpriteId ||
-                        (!targetSpriteId && !s.isStage)
-                            ? {
-                                  ...s,
-                                  bubble: msg
-                                      ? { type: 'say', text: msg }
-                                      : null,
-                              }
-                            : s,
-                    ),
-                }));
-                log(`[${timestamp()}] [looks] Sprite says: "${msg}"`);
+            case 'looks_think': {
+                const msg = evalString(block, 'MESSAGE', 'Hmm...');
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => setSpriteBubble(s, 'think', msg),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'looks',
+                );
                 break;
             }
             case 'looks_thinkforsecs': {
                 const msg = evalString(block, 'MESSAGE', 'Hmm...');
                 const secs = Math.max(0.1, evalInput(block, 'SECS', 2));
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) =>
-                        s.id === targetSpriteId ||
-                        (!targetSpriteId && !s.isStage)
-                            ? {
-                                  ...s,
-                                  bubble: msg
-                                      ? { type: 'think', text: msg }
-                                      : null,
-                              }
-                            : s,
-                    ),
-                }));
-                log(
-                    `[${timestamp()}] [looks] Sprite thinks: "${msg}" for ${secs}s`,
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => setSpriteBubble(s, 'think', msg),
+                    (cat, desc) =>
+                        log(`[${timestamp()}] [${cat}] ${desc} for ${secs}s`),
+                    'looks',
                 );
                 await new Promise((r) => setTimeout(r, secs * 1000));
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) =>
-                        s.id === targetSpriteId ||
-                        (!targetSpriteId && !s.isStage)
-                            ? { ...s, bubble: null }
-                            : s,
-                    ),
-                }));
-                break;
-            }
-            case 'looks_think': {
-                const msg = evalString(block, 'MESSAGE', 'Hmm...');
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) =>
-                        s.id === targetSpriteId ||
-                        (!targetSpriteId && !s.isStage)
-                            ? {
-                                  ...s,
-                                  bubble: msg
-                                      ? { type: 'think', text: msg }
-                                      : null,
-                              }
-                            : s,
-                    ),
-                }));
-                log(`[${timestamp()}] [looks] Sprite thinks: "${msg}"`);
+                setStageState((prev) =>
+                    updateTargetSprite(prev, targetSpriteId, clearSpriteBubble),
+                );
                 break;
             }
             case 'looks_show': {
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) =>
-                        s.id === targetSpriteId ||
-                        (!targetSpriteId && !s.isStage)
-                            ? { ...s, visible: true }
-                            : s,
-                    ),
-                }));
-                log(`[${timestamp()}] [looks] Sprite is now visible`);
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => setSpriteVisibility(s, true),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'looks',
+                );
                 break;
             }
             case 'looks_hide': {
-                setStageState((prev) => ({
-                    ...prev,
-                    sprites: prev.sprites.map((s) =>
-                        s.id === targetSpriteId ||
-                        (!targetSpriteId && !s.isStage)
-                            ? { ...s, visible: false }
-                            : s,
-                    ),
-                }));
-                log(`[${timestamp()}] [looks] Sprite is now hidden`);
+                mutateTargetSprite(
+                    setStageState,
+                    targetSpriteId,
+                    (s) => setSpriteVisibility(s, false),
+                    (cat, desc) => log(`[${timestamp()}] [${cat}] ${desc}`),
+                    'looks',
+                );
                 break;
             }
             case 'sound_play':
