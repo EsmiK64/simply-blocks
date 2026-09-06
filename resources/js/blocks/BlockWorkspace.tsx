@@ -3,71 +3,37 @@ import BlockRenderer from './BlockRenderer';
 import { BLOCK_DEFINITIONS } from './definitions';
 import { generatePython } from './generator';
 import type { BlockInstance, BlockDefinition } from './types';
-
-// Calculate the actual height of a block based on its children
-function calculateBlockHeight(block: BlockInstance): number {
-    if (block.definition.hasContainer) {
-        let innerHeight = 0;
-
-        if (block.children.length > 0) {
-            block.children.forEach((child) => {
-                innerHeight += calculateBlockHeight(child) - 8; // overlap by tab height
-            });
-        }
-
-        innerHeight = Math.max(innerHeight, 60);
-
-        let elseHeight = 0;
-
-        if (block.definition.hasElse) {
-            if (block.elseChildren.length > 0) {
-                block.elseChildren.forEach((child) => {
-                    elseHeight += calculateBlockHeight(child) - 8;
-                });
-            }
-
-            elseHeight = Math.max(elseHeight, 60);
-        }
-
-        const tabHeight = block.definition.hasTab ? 8 : 0;
-
-        return block.definition.hasElse
-            ? 40 + innerHeight + 40 + elseHeight + 40 + tabHeight
-            : 40 + innerHeight + 40 + tabHeight;
-    }
-
-    return block.definition.hasTab ? 48 : 40;
-}
-
-// Helper: recursively find a block by id inside inputs of any block in the flat list
-function findBlockInInputs(
-    targetId: string,
-    allBlocks: BlockInstance[],
-): { parentBlock: BlockInstance; slotName: string } | null {
-    for (const b of allBlocks) {
-        for (const [slotName, inputBlock] of Object.entries(b.inputs)) {
-            if (inputBlock && inputBlock.id === targetId) {
-                return { parentBlock: b, slotName };
-            }
-
-            if (inputBlock) {
-                const nested = findBlockInInputs(targetId, [inputBlock]);
-
-                if (nested) {
-                    return nested;
-                }
-            }
-        }
-    }
-
-    return null;
-}
+import type { SnapPreviewState } from './workspaceGeometry';
+import {
+    createBlockInstance,
+    recalculateStackPositions,
+    calculateSnapTarget,
+    disconnectBlock,
+    integrateStackSnap,
+    integrateInputSlotSnap,
+    removeInputBlock,
+    updateBlockFieldValue,
+} from './workspaceGeometry';
 
 interface BlockWorkspaceProps {
     onCodeChange?: (code: string) => void;
     onBlocksChange?: (blocks: BlockInstance[]) => void;
     className?: string;
 }
+
+const CATEGORY_ORDER = [
+    'motion',
+    'looks',
+    'sound',
+    'events',
+    'control',
+    'sensing',
+    'operators',
+    'variables',
+    'lists',
+    'pen',
+    'myblocks',
+];
 
 export default function BlockWorkspace({
     onCodeChange,
@@ -81,46 +47,18 @@ export default function BlockWorkspace({
         onBlocksChange?.(blocks);
         onCodeChange?.(generatePython(blocks));
     }, [blocks, onBlocksChange, onCodeChange]);
+
     const [draggingBlock, setDraggingBlock] = useState<BlockInstance | null>(
         null,
     );
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-    const [snapPreview, setSnapPreview] = useState<{
-        x: number;
-        y: number;
-        visible: boolean;
-        type?: 'stack' | 'nest' | 'insert' | 'input';
-        targetId?: string;
-        insertAfterId?: string;
-    }>({ x: 0, y: 0, visible: false });
-    // For input-slot snapping: which block+slot the dragged reporter should snap into
+    const [snapPreview, setSnapPreview] = useState<SnapPreviewState>({
+        x: 0,
+        y: 0,
+        visible: false,
+    });
     const inputSnapRef = useRef<{ parentId: string; slotName: string } | null>(
         null,
-    );
-    const initialPositionsRef = useRef<Map<string, { x: number; y: number }>>(
-        new Map(),
-    );
-
-    const createBlockInstance = useCallback(
-        (def: BlockDefinition, x: number, y: number): BlockInstance => {
-            const fields: Record<string, string | number | boolean> = {};
-            def.fields?.forEach((field) => {
-                fields[field.name] = field.value ?? '';
-            });
-
-            return {
-                id: `block-${Date.now()}-${Math.random()}`,
-                definition: def,
-                fields,
-                inputs: {},
-                next: null,
-                children: [],
-                elseChildren: [],
-                x,
-                y,
-            };
-        },
-        [],
     );
 
     const handleDragStart = useCallback(
@@ -131,104 +69,27 @@ export default function BlockWorkspace({
         [],
     );
 
-    const handleDrop = useCallback(
-        (e: React.DragEvent) => {
-            e.preventDefault();
-            const data = e.dataTransfer.getData('application/json');
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        const data = e.dataTransfer.getData('application/json');
 
-            if (!data || !canvasRef.current) {
-                return;
-            }
+        if (!data || !canvasRef.current) {
+            return;
+        }
 
-            const def: BlockDefinition = JSON.parse(data);
-            const rect = canvasRef.current.getBoundingClientRect();
-            const x = e.clientX - rect.left - 100;
-            const y = e.clientY - rect.top - 20;
+        const def: BlockDefinition = JSON.parse(data);
+        const rect = canvasRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left - 100;
+        const y = e.clientY - rect.top - 20;
 
-            const newBlock = createBlockInstance(def, x, y);
-            setBlocks((prev) => [...prev, newBlock]);
-        },
-        [createBlockInstance],
-    );
+        const newBlock = createBlockInstance(def, x, y);
+        setBlocks((prev) => [...prev, newBlock]);
+    }, []);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
     }, []);
-
-    // Recalculate positions of blocks in a stack after snapping
-    const recalculateStackPositions = useCallback(
-        (
-            startBlock: BlockInstance,
-            allBlocks: BlockInstance[],
-        ): BlockInstance[] => {
-            const updated = [...allBlocks];
-            const visited = new Set<string>();
-
-            const recalculateBlock = (
-                block: BlockInstance,
-                x: number,
-                y: number,
-            ): void => {
-                if (visited.has(block.id)) {
-                    return;
-                }
-
-                visited.add(block.id);
-
-                const idx = updated.findIndex((b) => b.id === block.id);
-
-                if (idx === -1) {
-                    return;
-                }
-
-                const blockHeight = calculateBlockHeight(block);
-
-                updated[idx] = { ...block, x, y };
-
-                // Recalculate children positions
-                if (
-                    block.definition.hasContainer &&
-                    block.children.length > 0
-                ) {
-                    let childY = y + 40; // flush with header bottom
-                    block.children.forEach((child) => {
-                        recalculateBlock(child, x + 12, childY);
-                        const childHeight = calculateBlockHeight(child);
-                        const childOverlap = child.definition.hasTab ? 8 : 0;
-                        childY += childHeight - childOverlap;
-                    });
-                }
-
-                // Recalculate else-children positions
-                if (block.definition.hasElse && block.elseChildren.length > 0) {
-                    let innerHeight = 0;
-                    block.children.forEach((child) => {
-                        innerHeight += calculateBlockHeight(child) - 8;
-                    });
-                    innerHeight = Math.max(innerHeight, 60);
-                    let elseChildY = y + 40 + innerHeight + 40; // header + inner + else bar
-                    block.elseChildren.forEach((child) => {
-                        recalculateBlock(child, x + 12, elseChildY);
-                        const childHeight = calculateBlockHeight(child);
-                        const childOverlap = child.definition.hasTab ? 8 : 0;
-                        elseChildY += childHeight - childOverlap;
-                    });
-                }
-
-                // Recalculate next block position (tab peg overlaps into next block's notch by 8px)
-                if (block.next) {
-                    const overlap = block.definition.hasTab ? 8 : 0;
-                    recalculateBlock(block.next, x, y + blockHeight - overlap);
-                }
-            };
-
-            recalculateBlock(startBlock, startBlock.x, startBlock.y);
-
-            return updated;
-        },
-        [],
-    );
 
     // Scan all rendered empty input slots and find the nearest one to a canvas point
     const findNearestInputSlot = useCallback(
@@ -282,36 +143,9 @@ export default function BlockWorkspace({
             fieldName: string,
             value: string | number | boolean,
         ) => {
-            setBlocks((prev) => {
-                const updateBlock = (b: BlockInstance): BlockInstance => {
-                    if (b.id === blockId) {
-                        return {
-                            ...b,
-                            fields: {
-                                ...b.fields,
-                                [fieldName]: value,
-                            },
-                        };
-                    }
-
-                    const updatedInputs: Record<string, BlockInstance | null> =
-                        {};
-
-                    for (const [slot, inp] of Object.entries(b.inputs)) {
-                        updatedInputs[slot] = inp ? updateBlock(inp) : null;
-                    }
-
-                    return {
-                        ...b,
-                        inputs: updatedInputs,
-                        children: b.children.map(updateBlock),
-                        elseChildren: b.elseChildren.map(updateBlock),
-                        next: b.next ? updateBlock(b.next) : null,
-                    };
-                };
-
-                return prev.map(updateBlock);
-            });
+            setBlocks((prev) =>
+                updateBlockFieldValue(blockId, fieldName, value, prev),
+            );
         },
         [],
     );
@@ -332,74 +166,7 @@ export default function BlockWorkspace({
                 y: e.clientY - rect.top,
             };
 
-            // Disconnect from parent / previous block, but keep the attached sub-stack
-            setBlocks((prev) => {
-                let updated = [...prev];
-
-                // Remove from parent's children or elseChildren if nested
-                const parentIdx = updated.findIndex(
-                    (b) =>
-                        b.children.some((c) => c.id === block.id) ||
-                        b.elseChildren.some((c) => c.id === block.id),
-                );
-
-                if (parentIdx !== -1) {
-                    updated[parentIdx] = {
-                        ...updated[parentIdx],
-                        children: updated[parentIdx].children.filter(
-                            (c) => c.id !== block.id,
-                        ),
-                        elseChildren: updated[parentIdx].elseChildren.filter(
-                            (c) => c.id !== block.id,
-                        ),
-                    };
-                }
-
-                // Remove from previous block's next if it was in a stack
-                const prevBlockIdx = updated.findIndex(
-                    (b) => b.next?.id === block.id,
-                );
-
-                if (prevBlockIdx !== -1) {
-                    updated[prevBlockIdx] = {
-                        ...updated[prevBlockIdx],
-                        next: null,
-                    };
-                }
-
-                // Remove from an input slot if it was snapped into one
-                const inInputResult = findBlockInInputs(block.id, updated);
-
-                if (inInputResult) {
-                    const { parentBlock, slotName } = inInputResult;
-                    const pIdx = updated.findIndex(
-                        (b) => b.id === parentBlock.id,
-                    );
-
-                    if (pIdx !== -1) {
-                        updated[pIdx] = {
-                            ...updated[pIdx],
-                            inputs: {
-                                ...updated[pIdx].inputs,
-                                [slotName]: null,
-                            },
-                        };
-                    }
-
-                    if (!updated.some((b) => b.id === block.id)) {
-                        updated = [
-                            ...updated,
-                            { ...block, x: block.x, y: block.y },
-                        ];
-                    }
-                }
-
-                return updated;
-            });
-
-            const positions = new Map<string, { x: number; y: number }>();
-            positions.set(block.id, { x: block.x, y: block.y });
-            initialPositionsRef.current = positions;
+            setBlocks((prev) => disconnectBlock(block, prev));
             setDragOffset(offset);
             setDraggingBlock(block);
         },
@@ -418,13 +185,11 @@ export default function BlockWorkspace({
 
             // Move dragged block and reposition its attached stack
             setBlocks((prev) => {
-                const updated = prev.map((block) => {
-                    if (block.id === draggingBlock.id) {
-                        return { ...block, x: newX, y: newY };
-                    }
-
-                    return block;
-                });
+                const updated = prev.map((block) =>
+                    block.id === draggingBlock.id
+                        ? { ...block, x: newX, y: newY }
+                        : block,
+                );
 
                 const draggedInstance = updated.find(
                     (b) => b.id === draggingBlock.id,
@@ -435,7 +200,6 @@ export default function BlockWorkspace({
                     : updated;
             });
 
-            // Compute snap preview outside of setBlocks state updater
             const draggedShape = draggingBlock.definition.shape ?? 'stack';
             const isReporterLike =
                 draggedShape === 'reporter' || draggedShape === 'boolean';
@@ -475,131 +239,15 @@ export default function BlockWorkspace({
                     x: 0,
                     y: 0,
                     visible: false,
-                    targetId: undefined,
-                    insertAfterId: undefined,
                 });
 
                 return;
             }
 
-            let nearestBlock: BlockInstance | null = null;
-            let minDistance = 50;
-            let snapType: 'stack' | 'nest' | 'insert' | null = null;
-            let snapX = newX;
-            let snapY = newY;
-            let insertAfterBlock: BlockInstance | null = null;
-
-            for (const block of blocks) {
-                if (block.id === draggingBlock.id) {
-                    continue;
-                }
-
-                if (block.definition.hasContainer) {
-                    const blockHeight = calculateBlockHeight(block);
-                    const containerTop = block.y + 40;
-                    const containerBottom = block.y + blockHeight;
-                    const horizontallyAligned = Math.abs(newX - block.x) < 100;
-
-                    if (
-                        horizontallyAligned &&
-                        newY > containerTop &&
-                        newY < containerBottom
-                    ) {
-                        nearestBlock = block;
-                        snapType = 'nest';
-                        minDistance = 0;
-                        break;
-                    }
-                }
-
-                const blockDist = Math.sqrt(
-                    Math.pow(block.x - newX, 2) + Math.pow(block.y - newY, 2),
-                );
-
-                if (blockDist < minDistance) {
-                    minDistance = blockDist;
-                    nearestBlock = block;
-
-                    if (block.definition.hasContainer) {
-                        const blockHeight = calculateBlockHeight(block);
-                        const containerTop = block.y + 40;
-                        const containerBottom = block.y + blockHeight;
-                        const horizontallyAligned =
-                            Math.abs(newX - block.x) < 100;
-                        snapType =
-                            horizontallyAligned &&
-                            newY > containerTop &&
-                            newY < containerBottom
-                                ? 'nest'
-                                : 'stack';
-                    } else {
-                        const blockHeight = calculateBlockHeight(block);
-                        const tabHeight = block.definition.hasTab ? 8 : 0;
-                        const insertZoneTop = block.y + blockHeight / 2;
-                        const insertZoneBottom =
-                            block.y + blockHeight + tabHeight;
-
-                        if (newY > insertZoneTop && newY < insertZoneBottom) {
-                            snapType = 'insert';
-                            insertAfterBlock = block;
-                        } else {
-                            snapType = 'stack';
-                        }
-                    }
-                }
-            }
-
-            if (nearestBlock && snapType) {
-                if (
-                    snapType === 'nest' &&
-                    nearestBlock.definition.hasContainer
-                ) {
-                    snapX = nearestBlock.x + 12;
-                    let childY = nearestBlock.y + 40;
-                    nearestBlock.children.forEach((child) => {
-                        childY += calculateBlockHeight(child) - 8;
-                    });
-                    snapY = childY;
-                } else if (snapType === 'insert' && insertAfterBlock) {
-                    snapX = insertAfterBlock.x;
-                    snapY =
-                        insertAfterBlock.y +
-                        calculateBlockHeight(insertAfterBlock) -
-                        8;
-                } else {
-                    snapX = nearestBlock.x;
-                    snapY =
-                        nearestBlock.y + calculateBlockHeight(nearestBlock) - 8;
-                }
-
-                setSnapPreview({
-                    x: snapX,
-                    y: snapY,
-                    visible: true,
-                    type: snapType,
-                    targetId: nearestBlock.id,
-                    insertAfterId:
-                        snapType === 'insert'
-                            ? insertAfterBlock?.id
-                            : undefined,
-                });
-            } else {
-                setSnapPreview({
-                    x: 0,
-                    y: 0,
-                    visible: false,
-                    targetId: undefined,
-                    insertAfterId: undefined,
-                });
-            }
+            const snap = calculateSnapTarget(draggingBlock, newX, newY, blocks);
+            setSnapPreview(snap);
         },
-        [
-            draggingBlock,
-            dragOffset,
-            blocks,
-            findNearestInputSlot,
-            recalculateStackPositions,
-        ],
+        [draggingBlock, dragOffset, blocks, findNearestInputSlot],
     );
 
     const handleMouseUp = useCallback(() => {
@@ -607,138 +255,16 @@ export default function BlockWorkspace({
             return;
         }
 
-        // ── Input-slot snap (reporter/boolean into a slot) ──────────────────
         const inputSnap = inputSnapRef.current;
 
         if (snapPreview.visible && snapPreview.type === 'input' && inputSnap) {
-            setBlocks((prev) => {
-                const updated = [...prev];
-                const draggedIndex = updated.findIndex(
-                    (b) => b.id === draggingBlock.id,
-                );
-
-                if (draggedIndex === -1) {
-                    return prev;
-                }
-
-                const parentIdx = updated.findIndex(
-                    (b) => b.id === inputSnap.parentId,
-                );
-
-                if (parentIdx === -1) {
-                    return prev;
-                }
-
-                const draggedBlock = updated[draggedIndex];
-
-                // Embed the reporter into the parent's inputs
-                updated[parentIdx] = {
-                    ...updated[parentIdx],
-                    inputs: {
-                        ...updated[parentIdx].inputs,
-                        [inputSnap.slotName]: draggedBlock,
-                    },
-                };
-
-                // Remove from flat list (it now lives inside the parent)
-                updated.splice(draggedIndex, 1);
-
-                return updated;
-            });
-            inputSnapRef.current = null;
-            setDraggingBlock(null);
-            setSnapPreview({
-                x: 0,
-                y: 0,
-                visible: false,
-                targetId: undefined,
-                insertAfterId: undefined,
-            });
-
-            return;
-        }
-
-        // Use the snap preview position if visible
-        if (snapPreview.visible && snapPreview.targetId) {
-            setBlocks((prev) => {
-                const updated: BlockInstance[] = [...prev];
-                const draggedIndex = updated.findIndex(
-                    (b) => b.id === draggingBlock.id,
-                );
-
-                if (draggedIndex === -1) {
-                    return prev;
-                }
-
-                let newDragged = { ...updated[draggedIndex] };
-
-                // Remove from previous parent if any
-                const parentIdx = updated.findIndex((b) =>
-                    b.children.some((c) => c.id === draggingBlock.id),
-                );
-
-                if (parentIdx !== -1) {
-                    updated[parentIdx] = {
-                        ...updated[parentIdx],
-                        children: updated[parentIdx].children.filter(
-                            (c) => c.id !== draggingBlock.id,
-                        ),
-                    };
-                }
-
-                const snapType = snapPreview.type;
-                const targetId = snapPreview.targetId;
-                const insertAfterId = snapPreview.insertAfterId;
-
-                if (snapType === 'nest') {
-                    const targetIdx = updated.findIndex(
-                        (b) => b.id === targetId,
-                    );
-
-                    if (targetIdx !== -1) {
-                        updated[targetIdx] = {
-                            ...updated[targetIdx],
-                            children: [
-                                ...updated[targetIdx].children,
-                                newDragged,
-                            ],
-                        };
-                    }
-                } else if (snapType === 'insert' && insertAfterId) {
-                    const insertIdx = updated.findIndex(
-                        (b) => b.id === insertAfterId,
-                    );
-
-                    if (insertIdx !== -1) {
-                        const oldNext = updated[insertIdx].next;
-                        updated[insertIdx] = {
-                            ...updated[insertIdx],
-                            next: newDragged,
-                        };
-                        newDragged = { ...newDragged, next: oldNext };
-                    }
-                } else if (targetId) {
-                    const targetIdx = updated.findIndex(
-                        (b) => b.id === targetId,
-                    );
-
-                    if (targetIdx !== -1) {
-                        updated[targetIdx] = {
-                            ...updated[targetIdx],
-                            next: newDragged,
-                        };
-                    }
-                }
-
-                newDragged = {
-                    ...newDragged,
-                    x: snapPreview.x,
-                    y: snapPreview.y,
-                };
-                updated[draggedIndex] = newDragged;
-
-                return recalculateStackPositions(newDragged, updated);
-            });
+            setBlocks((prev) =>
+                integrateInputSlotSnap(draggingBlock, inputSnap, prev),
+            );
+        } else if (snapPreview.visible && snapPreview.targetId) {
+            setBlocks((prev) =>
+                integrateStackSnap(draggingBlock, snapPreview, prev),
+            );
         }
 
         inputSnapRef.current = null;
@@ -747,59 +273,27 @@ export default function BlockWorkspace({
             x: 0,
             y: 0,
             visible: false,
-            targetId: undefined,
-            insertAfterId: undefined,
         });
-    }, [draggingBlock, snapPreview, recalculateStackPositions]);
+    }, [draggingBlock, snapPreview]);
 
-    // Called when user mousedowns on a reporter block that's inside an input slot
     const handleInputRemove = useCallback(
         (parentBlockId: string, slotName: string) => {
             setBlocks((prev) => {
-                const parentIdx = prev.findIndex((b) => b.id === parentBlockId);
+                const res = removeInputBlock(parentBlockId, slotName, prev);
 
-                if (parentIdx === -1) {
+                if (!res) {
                     return prev;
                 }
 
-                const inputBlock = prev[parentIdx].inputs[slotName];
-
-                if (!inputBlock) {
-                    return prev;
-                }
-
-                const parent = prev[parentIdx];
-                // Place the extracted block near its parent
-                const extracted: BlockInstance = {
-                    ...inputBlock,
-                    x: parent.x + 10,
-                    y: parent.y + 10,
-                };
-
-                const updated = [
-                    ...prev.slice(0, parentIdx),
-                    {
-                        ...parent,
-                        inputs: { ...parent.inputs, [slotName]: null },
-                    },
-                    ...prev.slice(parentIdx + 1),
-                    extracted,
-                ];
-
-                // Start dragging the extracted block
-                const positions = new Map<string, { x: number; y: number }>();
-                positions.set(extracted.id, { x: extracted.x, y: extracted.y });
-                initialPositionsRef.current = positions;
                 setDragOffset({ x: 10, y: 10 });
-                setDraggingBlock(extracted);
+                setDraggingBlock(res.extracted);
 
-                return updated;
+                return res.blocks;
             });
         },
         [],
     );
 
-    // Add mouse move/up listeners
     useEffect(() => {
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
@@ -847,25 +341,11 @@ export default function BlockWorkspace({
             say,
         ]);
         setBlocks(starterBlocks);
-    }, [createBlockInstance, recalculateStackPositions]);
+    }, []);
 
     const handleClearAll = useCallback(() => {
         setBlocks([]);
     }, []);
-
-    const CATEGORY_ORDER = [
-        'motion',
-        'looks',
-        'sound',
-        'events',
-        'control',
-        'sensing',
-        'operators',
-        'variables',
-        'lists',
-        'pen',
-        'myblocks',
-    ];
 
     const groupedBlocks = BLOCK_DEFINITIONS.reduce(
         (acc, def) => {
@@ -873,7 +353,6 @@ export default function BlockWorkspace({
                 acc[def.category] = [];
             }
 
-            // Avoid duplicates (legacy aliases share the same sb3Opcode)
             const key = def.sb3Opcode ?? def.type;
 
             if (
@@ -950,7 +429,7 @@ export default function BlockWorkspace({
                     backgroundSize: '20px 20px',
                 }}
             >
-                {/* Render all blocks absolutely — children are positioned by recalculateStackPositions */}
+                {/* Render all blocks absolutely */}
                 {blocks.map((block) => (
                     <div
                         key={block.id}
@@ -973,7 +452,7 @@ export default function BlockWorkspace({
                     </div>
                 ))}
 
-                {/* Snap preview shadow — stack/nest/insert */}
+                {/* Snap preview shadow */}
                 {snapPreview.visible &&
                     draggingBlock &&
                     snapPreview.type !== 'input' && (
@@ -992,6 +471,7 @@ export default function BlockWorkspace({
                             />
                         </div>
                     )}
+
                 {/* Input-slot snap glow ring */}
                 {snapPreview.visible && snapPreview.type === 'input' && (
                     <div
@@ -1008,6 +488,7 @@ export default function BlockWorkspace({
                         }}
                     />
                 )}
+
                 {/* Empty state callout */}
                 {blocks.length === 0 && (
                     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center p-6 text-center select-none">
