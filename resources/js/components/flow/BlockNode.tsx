@@ -1,4 +1,5 @@
-import { Handle, Position, NodeProps } from 'reactflow';
+import type { NodeProps } from 'reactflow';
+import { Handle, Position } from 'reactflow';
 
 export interface BlockNodeData {
     label: string;
@@ -26,11 +27,12 @@ export default function BlockNode({ data }: NodeProps<BlockNodeData>) {
 
     return (
         <div
-            className="relative px-4 py-3 shadow-sm min-w-[180px]"
+            className="relative min-w-[180px] px-4 py-3 shadow-sm"
             style={{
                 backgroundColor: color,
                 color: 'white',
-                fontFamily: "'Instrument Sans', ui-sans-serif, system-ui, sans-serif",
+                fontFamily:
+                    "'Instrument Sans', ui-sans-serif, system-ui, sans-serif",
                 borderRadius: '8px',
             }}
         >
@@ -39,7 +41,7 @@ export default function BlockNode({ data }: NodeProps<BlockNodeData>) {
                 <Handle
                     type="target"
                     position={Position.Top}
-                    className="!w-4 !h-3 !bg-white !border-2 !rounded-sm"
+                    className="!h-3 !w-4 !rounded-sm !border-2 !bg-white"
                     style={{ borderColor: color, top: -6 }}
                 />
             )}
@@ -49,12 +51,12 @@ export default function BlockNode({ data }: NodeProps<BlockNodeData>) {
                 <Handle
                     type="source"
                     position={Position.Bottom}
-                    className="!w-4 !h-3 !bg-white !border-2 !rounded-sm"
+                    className="!h-3 !w-4 !rounded-sm !border-2 !bg-white"
                     style={{ borderColor: color, bottom: -6 }}
                 />
             )}
 
-            <div className="font-medium text-sm">{data.label}</div>
+            <div className="text-sm font-medium">{data.label}</div>
 
             {data.inputs && data.inputs.length > 0 && (
                 <div className="mt-2 space-y-1">
@@ -63,10 +65,12 @@ export default function BlockNode({ data }: NodeProps<BlockNodeData>) {
                             <Handle
                                 type="target"
                                 position={Position.Left}
-                                className="!w-3 !h-3 !bg-white !border-2"
+                                className="!h-3 !w-3 !border-2 !bg-white"
                                 style={{ borderColor: color }}
                             />
-                            <span className="text-xs opacity-90">{input.name}</span>
+                            <span className="text-xs opacity-90">
+                                {input.name}
+                            </span>
                         </div>
                     ))}
                 </div>
@@ -75,12 +79,17 @@ export default function BlockNode({ data }: NodeProps<BlockNodeData>) {
             {data.outputs && data.outputs.length > 0 && (
                 <div className="mt-2 space-y-1">
                     {data.outputs.map((output, i) => (
-                        <div key={i} className="flex items-center justify-end gap-2">
-                            <span className="text-xs opacity-90">{output.name}</span>
+                        <div
+                            key={i}
+                            className="flex items-center justify-end gap-2"
+                        >
+                            <span className="text-xs opacity-90">
+                                {output.name}
+                            </span>
                             <Handle
                                 type="source"
                                 position={Position.Right}
-                                className="!w-3 !h-3 !bg-white !border-2"
+                                className="!h-3 !w-3 !border-2 !bg-white"
                                 style={{ borderColor: color }}
                             />
                         </div>

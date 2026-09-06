@@ -1,13 +1,7 @@
-"use client";
-
-import React, { useState } from "react";
-import { cn } from "@/lib/utils";
-import {
-    Sidebar,
-    SidebarBody,
-    SidebarLink,
-    SidebarLinkItem,
-} from "@/components/sidebar";
+import React, { useState } from 'react';
+import type { SidebarLinkItem } from '@/components/sidebar';
+import { Sidebar, SidebarBody, SidebarLink } from '@/components/sidebar';
+import { cn } from '@/lib/utils';
 
 export interface AppSidebarLayoutProps {
     children: React.ReactNode;
@@ -49,19 +43,19 @@ export function AppSidebarLayout({
     const [open, setOpen] = useState(false);
 
     return (
-        <div className={cn("min-h-screen w-screen h-screen", className)}>
-            <div className="mx-auto flex w-full flex-1 flex-col rounded-md border md:flex-row bg-sidebar h-screen overflow-hidden">
+        <div className={cn('h-screen min-h-screen w-full', className)}>
+            <div className="mx-auto flex h-screen w-full flex-1 flex-col overflow-hidden rounded-md border bg-sidebar md:flex-row">
                 <Sidebar open={open} setOpen={setOpen}>
                     <SidebarBody
                         className={cn(
-                            "gap-10 justify-between",
-                            sidebarClassName
+                            'justify-between gap-10',
+                            sidebarClassName,
                         )}
                         mobileHeader={mobileHeader}
                     >
                         <div className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto p-1">
-                            {logo}
-                            <div className="flex flex-col gap-2 mt-8">
+                            {open ? logo : (logoCollapsed ?? logo)}
+                            <div className="mt-8 flex flex-col gap-2">
                                 {links.map((link, idx) => (
                                     <SidebarLink key={idx} link={link} />
                                 ))}
@@ -77,15 +71,17 @@ export function AppSidebarLayout({
                     </SidebarBody>
                 </Sidebar>
 
-                <div className="flex flex-col h-full min-h-0">
-                    <div className="hidden md:flex items-center justify-between shrink-0 h-fit p-4">
+                <div className="flex h-full min-w-0 flex-1 flex-col">
+                    <div className="hidden h-fit shrink-0 items-center justify-between p-4 md:flex">
                         {desktopHeader ? (
-                            <div className="flex-1 min-w-0">{desktopHeader}</div>
+                            <div className="min-w-0 flex-1">
+                                {desktopHeader}
+                            </div>
                         ) : (
                             <div />
                         )}
                         {actions ? (
-                            <div className="flex items-center gap-4 ml-4">
+                            <div className="ml-4 flex items-center gap-4">
                                 {actions}
                             </div>
                         ) : null}
@@ -93,16 +89,16 @@ export function AppSidebarLayout({
 
                     <main
                         className={cn(
-                            "flex flex-1 flex-row min-h-0 rounded-2xl bg-background min-w-[95dvw] p-0 z-0 overflow-hidden",
-                            mainClassName
+                            'z-0 flex min-h-0 w-full min-w-0 flex-1 flex-row overflow-hidden rounded-2xl bg-background p-0',
+                            mainClassName,
                         )}
                     >
                         {topBar}
                         <div
                             className={cn(
-                                "flex-1 min-h-0 p-8",
-                                scrollable && "overflow-auto",
-                                contentClassName
+                                'min-h-0 flex-1 p-8',
+                                scrollable && 'overflow-auto',
+                                contentClassName,
                             )}
                         >
                             {children}

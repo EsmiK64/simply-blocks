@@ -1,8 +1,10 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import type { StageState, SpriteState, Costume } from './SpriteRuntime';
 import {
-    StageState, SpriteState, Costume,
-    scratchToCanvas, canvasToScratch,
-    createStageSprite, createDefaultSprite,
+    scratchToCanvas,
+    canvasToScratch,
+    createStageSprite,
+    createDefaultSprite,
 } from './SpriteRuntime';
 
 interface StageComponentProps {
@@ -19,12 +21,17 @@ function renderSprite(
     sprite: SpriteState,
     images: Map<string, HTMLImageElement>,
     stageW: number,
-    stageH: number
+    stageH: number,
 ) {
-    if (!sprite.visible) return;
+    if (!sprite.visible) {
+        return;
+    }
 
     const costume: Costume | undefined = sprite.costumes[sprite.currentCostume];
-    if (!costume) return;
+
+    if (!costume) {
+        return;
+    }
 
     const img = costume.dataUrl ? images.get(costume.dataUrl) : null;
 
@@ -43,7 +50,8 @@ function renderSprite(
 
     // Ghost effect via globalAlpha
     if (sprite.effects.ghost !== 0) {
-        ctx.globalAlpha = 1 - Math.min(100, Math.max(0, sprite.effects.ghost)) / 100;
+        ctx.globalAlpha =
+            1 - Math.min(100, Math.max(0, sprite.effects.ghost)) / 100;
     }
 
     const drawX = -costume.rotationCenterX * scale;
@@ -56,9 +64,10 @@ function renderSprite(
         ctx.fillStyle = sprite.isStage ? '#e8e8e8' : '#4C97FF';
         ctx.globalAlpha = 0.4;
         ctx.fillRect(drawX, drawY, costumeW || 60, costumeH || 60);
-        ctx.globalAlpha = sprite.effects.ghost !== 0
-            ? 1 - Math.min(100, Math.max(0, sprite.effects.ghost)) / 100
-            : 1;
+        ctx.globalAlpha =
+            sprite.effects.ghost !== 0
+                ? 1 - Math.min(100, Math.max(0, sprite.effects.ghost)) / 100
+                : 1;
         ctx.fillStyle = '#fff';
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
@@ -81,14 +90,39 @@ export default function StageComponent({
     const [scale, setScale] = useState(1);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const STAGE_W = state.width;   // 480
-    const STAGE_H = state.height;  // 360
+    const STAGE_W = state.width; // 480
+    const STAGE_H = state.height; // 360
+
+    // Render loop
+    const drawFrame = useCallback(() => {
+        const canvas = canvasRef.current;
+
+        if (!canvas) {
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+            return;
+        }
+
+        ctx.clearRect(0, 0, STAGE_W, STAGE_H);
+
+        // Sort sprites by layerOrder
+        const sorted = [...state.sprites].sort(
+            (a, b) => a.layerOrder - b.layerOrder,
+        );
+        sorted.forEach((sprite) => {
+            renderSprite(ctx, sprite, imagesRef.current, STAGE_W, STAGE_H);
+        });
+    }, [state, STAGE_W, STAGE_H]);
 
     // Pre-load costume images
     useEffect(() => {
         const images = imagesRef.current;
-        state.sprites.forEach(sprite => {
-            sprite.costumes.forEach(costume => {
+        state.sprites.forEach((sprite) => {
+            sprite.costumes.forEach((costume) => {
                 if (costume.dataUrl && !images.has(costume.dataUrl)) {
                     const img = new Image();
                     img.onload = () => {
@@ -100,23 +134,7 @@ export default function StageComponent({
                 }
             });
         });
-    }, [state.sprites]);
-
-    // Render loop
-    const drawFrame = useCallback(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.clearRect(0, 0, STAGE_W, STAGE_H);
-
-        // Sort sprites by layerOrder
-        const sorted = [...state.sprites].sort((a, b) => a.layerOrder - b.layerOrder);
-        sorted.forEach(sprite => {
-            renderSprite(ctx, sprite, imagesRef.current, STAGE_W, STAGE_H);
-        });
-    }, [state, STAGE_W, STAGE_H]);
+    }, [state.sprites, drawFrame]);
 
     useEffect(() => {
         drawFrame();
@@ -125,33 +143,72 @@ export default function StageComponent({
     // Responsive scaling
     useEffect(() => {
         const container = containerRef.current;
-        if (!container) return;
-        const observer = new ResizeObserver(() => {
-            const { width } = container.getBoundingClientRect();
-            setScale(Math.min(1, width / STAGE_W));
-        });
+
+        if (!container) {
+            return;
+        }
+
+        const updateScale = () => {
+            const containerW = container.clientWidth;
+            const newScale = Math.min(1, containerW / STAGE_W);
+            setScale(newScale);
+        };
+
+        updateScale();
+        const observer = new ResizeObserver(updateScale);
         observer.observe(container);
+
         return () => observer.disconnect();
     }, [STAGE_W]);
 
-    const getEventScratchCoords = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-        const canvas = canvasRef.current!;
-        const rect = canvas.getBoundingClientRect();
-        const canvasX = (e.clientX - rect.left) / scale;
-        const canvasY = (e.clientY - rect.top) / scale;
-        return canvasToScratch(canvasX, canvasY, STAGE_W, STAGE_H);
-    }, [scale, STAGE_W, STAGE_H]);
+    const getEventScratchCoords = useCallback(
+        (e: React.MouseEvent<HTMLCanvasElement>) => {
+            const canvas = canvasRef.current!;
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = (e.clientX - rect.left) / scale;
+            const canvasY = (e.clientY - rect.top) / scale;
 
-    const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-        const [sx, sy] = getEventScratchCoords(e);
-        onMouseMove?.(sx, sy);
-    }, [getEventScratchCoords, onMouseMove]);
+            return canvasToScratch(canvasX, canvasY, STAGE_W, STAGE_H);
+        },
+        [scale, STAGE_W, STAGE_H],
+    );
 
-    const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-        const [sx, sy] = getEventScratchCoords(e);
-        onStageClick?.(sx, sy);
-        // TODO: hit-test sprites for sprite click events
-    }, [getEventScratchCoords, onStageClick]);
+    const handleMouseMove = useCallback(
+        (e: React.MouseEvent<HTMLCanvasElement>) => {
+            const [sx, sy] = getEventScratchCoords(e);
+            onMouseMove?.(sx, sy);
+        },
+        [getEventScratchCoords, onMouseMove],
+    );
+
+    const handleClick = useCallback(
+        (e: React.MouseEvent<HTMLCanvasElement>) => {
+            const [sx, sy] = getEventScratchCoords(e);
+            onStageClick?.(sx, sy);
+
+            if (onSpriteClick) {
+                const clickableSprites = [...state.sprites]
+                    .filter((s) => !s.isStage && s.visible)
+                    .sort((a, b) => b.layerOrder - a.layerOrder);
+
+                for (const s of clickableSprites) {
+                    const halfW = (24 * s.size) / 100;
+                    const halfH = (24 * s.size) / 100;
+
+                    if (
+                        sx >= s.x - halfW &&
+                        sx <= s.x + halfW &&
+                        sy >= s.y - halfH &&
+                        sy <= s.y + halfH
+                    ) {
+                        onSpriteClick(s.id);
+                        break;
+                    }
+                }
+            }
+        },
+        [getEventScratchCoords, onStageClick, onSpriteClick, state.sprites],
+    );
 
     return (
         <div ref={containerRef} className="w-full">
@@ -176,7 +233,7 @@ export default function StageComponent({
                     onClick={handleClick}
                 />
                 {/* Stage coordinates overlay */}
-                <div className="absolute bottom-1 right-2 text-[10px] text-gray-400 pointer-events-none select-none font-mono">
+                <div className="pointer-events-none absolute right-2 bottom-1 font-mono text-[10px] text-gray-400 select-none">
                     480×360
                 </div>
             </div>
@@ -186,7 +243,10 @@ export default function StageComponent({
 
 // ── Convenience hook ──────────────────────────────────────────────────────────
 
-export function useStageState(): [StageState, React.Dispatch<React.SetStateAction<StageState>>] {
+export function useStageState(): [
+    StageState,
+    React.Dispatch<React.SetStateAction<StageState>>,
+] {
     const [stageState, setStageState] = useState<StageState>(() => ({
         width: 480,
         height: 360,
@@ -195,17 +255,19 @@ export function useStageState(): [StageState, React.Dispatch<React.SetStateActio
         videoTransparency: 50,
         videoState: 'off',
     }));
+
     return [stageState, setStageState];
 }
 
 export function addSprite(
     setState: React.Dispatch<React.SetStateAction<StageState>>,
-    name = 'Sprite1'
+    name = 'Sprite1',
 ) {
-    setState(prev => {
+    setState((prev) => {
         const id = `sprite_${Date.now()}`;
         const layerOrder = prev.sprites.length;
         const sprite = { ...createDefaultSprite(id, name), layerOrder };
+
         return { ...prev, sprites: [...prev.sprites, sprite] };
     });
 }

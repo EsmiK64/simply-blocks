@@ -1,18 +1,17 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
+import type { Connection, Edge, Node } from 'reactflow';
 import ReactFlow, {
     Background,
     Controls,
     MiniMap,
     addEdge,
-    Connection,
-    Edge,
-    Node,
     useNodesState,
     useEdgesState,
     BackgroundVariant,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import BlockNode, { BlockNodeData } from './BlockNode';
+import type { BlockNodeData } from './BlockNode';
+import BlockNode from './BlockNode';
 
 const nodeTypes = {
     block: BlockNode,
@@ -43,7 +42,10 @@ const INITIAL_NODES: Node<BlockNodeData>[] = [
             hasTopConnector: true,
             hasBottomConnector: true,
             inputs: [{ name: 'condition', type: 'boolean' }],
-            outputs: [{ name: 'true', type: 'any' }, { name: 'false', type: 'any' }],
+            outputs: [
+                { name: 'true', type: 'any' },
+                { name: 'false', type: 'any' },
+            ],
         },
     },
     {
@@ -62,8 +64,20 @@ const INITIAL_NODES: Node<BlockNodeData>[] = [
 ];
 
 const INITIAL_EDGES: Edge[] = [
-    { id: 'e1-2', source: '1', sourceHandle: 'bottom', target: '2', targetHandle: 'top' },
-    { id: 'e2-3', source: '2', sourceHandle: 'bottom', target: '3', targetHandle: 'top' },
+    {
+        id: 'e1-2',
+        source: '1',
+        sourceHandle: 'bottom',
+        target: '2',
+        targetHandle: 'top',
+    },
+    {
+        id: 'e2-3',
+        source: '2',
+        sourceHandle: 'bottom',
+        target: '3',
+        targetHandle: 'top',
+    },
 ];
 
 interface FlowEditorProps {
@@ -71,39 +85,45 @@ interface FlowEditorProps {
     onEdgesChange?: (edges: Edge[]) => void;
 }
 
-export default function FlowEditor({ onNodesChange, onEdgesChange }: FlowEditorProps) {
-    const [nodes, setNodes, onNodesChangeInternal] = useNodesState(INITIAL_NODES);
-    const [edges, setEdges, onEdgesChangeInternal] = useEdgesState(INITIAL_EDGES);
+export default function FlowEditor({
+    onNodesChange,
+    onEdgesChange,
+}: FlowEditorProps) {
+    const [nodes, , onNodesChangeInternal] = useNodesState(INITIAL_NODES);
+    const [edges, setEdges, onEdgesChangeInternal] =
+        useEdgesState(INITIAL_EDGES);
 
     const onConnect = useCallback(
         (connection: Connection) => {
             setEdges((eds) => addEdge(connection, eds));
         },
-        [setEdges]
+        [setEdges],
     );
 
     const handleNodesChange = useCallback(
         (changes: any) => {
             onNodesChangeInternal(changes);
+
             if (onNodesChange) {
                 onNodesChange(nodes);
             }
         },
-        [onNodesChangeInternal, onNodesChange, nodes]
+        [onNodesChangeInternal, onNodesChange, nodes],
     );
 
     const handleEdgesChange = useCallback(
         (changes: any) => {
             onEdgesChangeInternal(changes);
+
             if (onEdgesChange) {
                 onEdgesChange(edges);
             }
         },
-        [onEdgesChangeInternal, onEdgesChange, edges]
+        [onEdgesChangeInternal, onEdgesChange, edges],
     );
 
     return (
-        <div className="w-full h-full bg-background">
+        <div className="h-full w-full bg-background">
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -122,11 +142,18 @@ export default function FlowEditor({ onNodesChange, onEdgesChange }: FlowEditorP
                 fitView
                 className="bg-background"
             >
-                <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--muted-foreground)" />
-                <Controls className="!bg-card !border-border" />
+                <Background
+                    variant={BackgroundVariant.Dots}
+                    gap={20}
+                    size={1}
+                    color="var(--muted-foreground)"
+                />
+                <Controls className="!border-border !bg-card" />
                 <MiniMap
-                    className="!bg-card !border-border"
-                    nodeColor={(node) => (node.data as BlockNodeData).color || '#4C97FF'}
+                    className="!border-border !bg-card"
+                    nodeColor={(node) =>
+                        (node.data as BlockNodeData).color || '#4C97FF'
+                    }
                 />
             </ReactFlow>
         </div>

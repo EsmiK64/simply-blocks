@@ -1,5 +1,5 @@
 import React from 'react';
-import { StageState, SpriteState } from './SpriteRuntime';
+import type { StageState, SpriteState } from './SpriteRuntime';
 
 interface SpritePanelProps {
     stageState: StageState;
@@ -7,7 +7,11 @@ interface SpritePanelProps {
     onSelectSprite: (id: string) => void;
     onAddSprite: () => void;
     onDeleteSprite: (id: string) => void;
-    onSpritePropertyChange: (id: string, prop: keyof SpriteState, value: unknown) => void;
+    onSpritePropertyChange: (
+        id: string,
+        prop: keyof SpriteState,
+        value: unknown,
+    ) => void;
 }
 
 export default function SpritePanel({
@@ -18,18 +22,18 @@ export default function SpritePanel({
     onDeleteSprite,
     onSpritePropertyChange,
 }: SpritePanelProps) {
-    const selected = stageState.sprites.find(s => s.id === selectedSpriteId);
-    const sprites = stageState.sprites.filter(s => !s.isStage);
+    const selected = stageState.sprites.find((s) => s.id === selectedSpriteId);
+    const sprites = stageState.sprites.filter((s) => !s.isStage);
 
     return (
-        <div className="flex flex-col gap-2 p-2 bg-card border-t border-border">
+        <div className="flex flex-col gap-2 border-t border-border bg-card p-2">
             {/* Sprite list */}
             <div className="flex gap-2 overflow-x-auto pb-1">
-                {sprites.map(sprite => (
+                {sprites.map((sprite) => (
                     <button
                         key={sprite.id}
                         onClick={() => onSelectSprite(sprite.id)}
-                        className={`flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded border text-xs transition-colors ${
+                        className={`flex flex-shrink-0 flex-col items-center gap-1 rounded border p-2 text-xs transition-colors ${
                             selectedSpriteId === sprite.id
                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
                                 : 'border-border bg-background hover:bg-muted'
@@ -38,27 +42,32 @@ export default function SpritePanel({
                     >
                         {/* Costume thumbnail placeholder */}
                         <div
-                            className="w-12 h-12 rounded bg-muted flex items-center justify-center text-muted-foreground text-[10px]"
+                            className="flex h-12 w-12 items-center justify-center rounded bg-muted text-[10px] text-muted-foreground"
                             style={{ backgroundColor: '#4C97FF22' }}
                         >
                             {sprite.costumes[sprite.currentCostume]?.dataUrl ? (
                                 <img
-                                    src={sprite.costumes[sprite.currentCostume].dataUrl!}
-                                    className="max-w-full max-h-full object-contain"
+                                    src={
+                                        sprite.costumes[sprite.currentCostume]
+                                            .dataUrl!
+                                    }
+                                    className="max-h-full max-w-full object-contain"
                                     alt={sprite.name}
                                 />
                             ) : (
                                 <span className="text-blue-400">?</span>
                             )}
                         </div>
-                        <span className="truncate max-w-[60px] text-foreground">{sprite.name}</span>
+                        <span className="max-w-[60px] truncate text-foreground">
+                            {sprite.name}
+                        </span>
                     </button>
                 ))}
 
                 {/* Add sprite button */}
                 <button
                     onClick={onAddSprite}
-                    className="flex-shrink-0 flex flex-col items-center justify-center gap-1 p-2 rounded border border-dashed border-border text-muted-foreground hover:bg-muted transition-colors"
+                    className="flex flex-shrink-0 flex-col items-center justify-center gap-1 rounded border border-dashed border-border p-2 text-muted-foreground transition-colors hover:bg-muted"
                     style={{ minWidth: 64, minHeight: 80 }}
                     title="Add sprite"
                 >
@@ -69,55 +78,113 @@ export default function SpritePanel({
 
             {/* Selected sprite properties */}
             {selected && !selected.isStage && (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground border-t border-border pt-2">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2 text-xs text-muted-foreground">
                     <label className="flex items-center gap-1">
-                        <span className="text-foreground font-medium">x</span>
+                        <span className="font-medium text-foreground">x</span>
                         <input
                             type="number"
-                            value={Math.round(selected.x)}
-                            onChange={e => onSpritePropertyChange(selected.id, 'x', parseFloat(e.target.value))}
-                            className="w-14 h-5 rounded bg-background border border-input text-foreground px-1 text-xs"
+                            value={
+                                Number.isFinite(selected.x)
+                                    ? Math.round(selected.x)
+                                    : 0
+                            }
+                            onChange={(e) => {
+                                const parsed = parseFloat(e.target.value);
+                                onSpritePropertyChange(
+                                    selected.id,
+                                    'x',
+                                    Number.isFinite(parsed) ? parsed : 0,
+                                );
+                            }}
+                            className="h-5 w-14 rounded border border-input bg-background px-1 text-xs text-foreground"
                         />
                     </label>
                     <label className="flex items-center gap-1">
-                        <span className="text-foreground font-medium">y</span>
+                        <span className="font-medium text-foreground">y</span>
                         <input
                             type="number"
-                            value={Math.round(selected.y)}
-                            onChange={e => onSpritePropertyChange(selected.id, 'y', parseFloat(e.target.value))}
-                            className="w-14 h-5 rounded bg-background border border-input text-foreground px-1 text-xs"
+                            value={
+                                Number.isFinite(selected.y)
+                                    ? Math.round(selected.y)
+                                    : 0
+                            }
+                            onChange={(e) => {
+                                const parsed = parseFloat(e.target.value);
+                                onSpritePropertyChange(
+                                    selected.id,
+                                    'y',
+                                    Number.isFinite(parsed) ? parsed : 0,
+                                );
+                            }}
+                            className="h-5 w-14 rounded border border-input bg-background px-1 text-xs text-foreground"
                         />
                     </label>
                     <label className="flex items-center gap-1">
-                        <span className="text-foreground font-medium">direction</span>
+                        <span className="font-medium text-foreground">
+                            direction
+                        </span>
                         <input
                             type="number"
-                            value={Math.round(selected.direction)}
-                            onChange={e => onSpritePropertyChange(selected.id, 'direction', parseFloat(e.target.value))}
-                            className="w-14 h-5 rounded bg-background border border-input text-foreground px-1 text-xs"
+                            value={
+                                Number.isFinite(selected.direction)
+                                    ? Math.round(selected.direction)
+                                    : 90
+                            }
+                            onChange={(e) => {
+                                const parsed = parseFloat(e.target.value);
+                                onSpritePropertyChange(
+                                    selected.id,
+                                    'direction',
+                                    Number.isFinite(parsed) ? parsed : 90,
+                                );
+                            }}
+                            className="h-5 w-14 rounded border border-input bg-background px-1 text-xs text-foreground"
                         />
                     </label>
                     <label className="flex items-center gap-1">
-                        <span className="text-foreground font-medium">size</span>
+                        <span className="font-medium text-foreground">
+                            size
+                        </span>
                         <input
                             type="number"
-                            value={Math.round(selected.size)}
-                            onChange={e => onSpritePropertyChange(selected.id, 'size', parseFloat(e.target.value))}
-                            className="w-14 h-5 rounded bg-background border border-input text-foreground px-1 text-xs"
+                            value={
+                                Number.isFinite(selected.size)
+                                    ? Math.round(selected.size)
+                                    : 100
+                            }
+                            onChange={(e) => {
+                                const parsed = parseFloat(e.target.value);
+                                onSpritePropertyChange(
+                                    selected.id,
+                                    'size',
+                                    Number.isFinite(parsed)
+                                        ? Math.max(1, parsed)
+                                        : 100,
+                                );
+                            }}
+                            className="h-5 w-14 rounded border border-input bg-background px-1 text-xs text-foreground"
                         />
                     </label>
                     <label className="flex items-center gap-1">
-                        <span className="text-foreground font-medium">show</span>
+                        <span className="font-medium text-foreground">
+                            show
+                        </span>
                         <input
                             type="checkbox"
                             checked={selected.visible}
-                            onChange={e => onSpritePropertyChange(selected.id, 'visible', e.target.checked)}
+                            onChange={(e) =>
+                                onSpritePropertyChange(
+                                    selected.id,
+                                    'visible',
+                                    e.target.checked,
+                                )
+                            }
                             className="accent-blue-500"
                         />
                     </label>
                     <button
                         onClick={() => onDeleteSprite(selected.id)}
-                        className="ml-auto text-red-500 hover:text-red-700 text-xs"
+                        className="ml-auto text-xs text-red-500 hover:text-red-700"
                     >
                         Delete sprite
                     </button>
