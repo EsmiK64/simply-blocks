@@ -15,6 +15,12 @@ import {
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { executeBlocklyWorkspace } from '@/blocks/blockly/blocklyRunner';
 import BlocklyWorkspace from '@/blocks/blockly/BlocklyWorkspace';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+} from '@/components/ui/select';
 import SpritePanel from '@/stage/SpritePanel';
 import type { SpriteState } from '@/stage/SpriteRuntime';
 import StageComponent, {
@@ -46,6 +52,18 @@ export default function TestBlockLab() {
         },
     );
     const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0 });
+
+    const nonStageSprites = useMemo(
+        () => stageState.sprites.filter((s) => !s.isStage),
+        [stageState.sprites],
+    );
+
+    const selectedSprite = useMemo(
+        () =>
+            nonStageSprites.find((s) => s.id === selectedSpriteId) ??
+            nonStageSprites[0],
+        [nonStageSprites, selectedSpriteId],
+    );
 
     const consoleBottomRef = useRef<HTMLDivElement>(null);
 
@@ -79,7 +97,7 @@ export default function TestBlockLab() {
         try {
             await executeBlocklyWorkspace(
                 workspace,
-                selectedSpriteId ?? '',
+                selectedSprite?.id ?? '',
                 setStageState,
                 addLog,
             );
@@ -91,7 +109,7 @@ export default function TestBlockLab() {
         } finally {
             setIsRunning(false);
         }
-    }, [isRunning, workspace, selectedSpriteId, setStageState, addLog]);
+    }, [isRunning, workspace, selectedSprite, setStageState, addLog]);
 
     // Keyboard shortcut: Ctrl+Enter or Cmd+Enter to Run
     useEffect(() => {
@@ -137,7 +155,8 @@ export default function TestBlockLab() {
 
     const handleAddSprite = useCallback(() => {
         const name = `Sprite${stageState.sprites.filter((s) => !s.isStage).length + 1}`;
-        addSprite(setStageState, name);
+        const newId = addSprite(setStageState, name);
+        setSelectedSpriteId(newId);
         addLog(
             `[${new Date().toLocaleTimeString([], { hour12: false })}] [stage] Created ${name}`,
         );
@@ -146,13 +165,17 @@ export default function TestBlockLab() {
     const handleDeleteSprite = useCallback(
         (id: string) => {
             const deleted = stageState.sprites.find((s) => s.id === id);
+            const remaining = stageState.sprites.filter(
+                (s) => !s.isStage && s.id !== id,
+            );
+
             setStageState((prev) => ({
                 ...prev,
                 sprites: prev.sprites.filter((s) => s.id !== id),
             }));
 
             if (selectedSpriteId === id) {
-                setSelectedSpriteId(null);
+                setSelectedSpriteId(remaining[0]?.id ?? null);
             }
 
             if (deleted) {
@@ -237,21 +260,55 @@ export default function TestBlockLab() {
                         <span className="hidden text-muted-foreground md:inline">
                             Target:
                         </span>
-                        <select
-                            value={selectedSpriteId ?? ''}
-                            onChange={(e) =>
-                                setSelectedSpriteId(e.target.value)
-                            }
-                            className="h-7 rounded border border-border bg-background px-2 py-0.5 text-xs font-medium text-foreground focus:ring-1 focus:ring-ring focus:outline-none"
+                        <Select
+                            value={selectedSprite?.id ?? ''}
+                            onValueChange={setSelectedSpriteId}
                         >
-                            {stageState.sprites
-                                .filter((s) => !s.isStage)
-                                .map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name} ({s.x}, {s.y})
-                                    </option>
+                            <SelectTrigger
+                                size="sm"
+                                className="h-7 max-w-[180px] min-w-[120px] font-mono text-xs"
+                            >
+                                {selectedSprite ? (
+                                    <span className="flex items-center gap-1.5">
+                                        <span
+                                            className="inline-block size-2 shrink-0 rounded-full"
+                                            style={{
+                                                backgroundColor:
+                                                    selectedSprite.color ??
+                                                    '#FFAB19',
+                                            }}
+                                        />
+                                        <span className="truncate">
+                                            {selectedSprite.name}
+                                        </span>
+                                    </span>
+                                ) : (
+                                    <span className="text-muted-foreground">
+                                        No sprite
+                                    </span>
+                                )}
+                            </SelectTrigger>
+                            <SelectContent>
+                                {nonStageSprites.map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>
+                                        <span className="flex items-center gap-2">
+                                            <span
+                                                className="inline-block size-2 shrink-0 rounded-full"
+                                                style={{
+                                                    backgroundColor:
+                                                        s.color ?? '#FFAB19',
+                                                }}
+                                            />
+                                            <span>{s.name}</span>
+                                            <span className="font-mono text-muted-foreground">
+                                                ({Math.round(s.x)},{' '}
+                                                {Math.round(s.y)})
+                                            </span>
+                                        </span>
+                                    </SelectItem>
                                 ))}
-                        </select>
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <span className="hidden rounded border border-border/50 bg-muted/50 px-2 py-0.5 font-mono text-xs text-muted-foreground lg:inline">

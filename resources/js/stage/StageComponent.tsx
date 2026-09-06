@@ -291,9 +291,10 @@ export function useStageState(): [
 export function addSprite(
     setState: React.Dispatch<React.SetStateAction<StageState>>,
     name = 'Sprite',
-) {
+): string {
+    const id = `sprite_${Date.now()}`;
+
     setState((prev) => {
-        const id = `sprite_${Date.now()}`;
         const layerOrder = prev.sprites.length;
         const colors = ['#FFAB19', '#4C97FF', '#9966FF', '#0FBD8C', '#FF6680'];
         const color = colors[(prev.sprites.length - 1) % colors.length];
@@ -301,4 +302,6 @@ export function addSprite(
 
         return { ...prev, sprites: [...prev.sprites, sprite] };
     });
+
+    return id;
 }

@@ -6,6 +6,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { registerScratchBlocks } from './blocks';
 import { registerGenerators } from './generators';
+import { SimplyBlocksDarkTheme } from './theme';
 import { SCRATCH_TOOLBOX } from './toolbox';
 
 export interface BlocklyWorkspaceProps {
@@ -90,6 +91,7 @@ export default function BlocklyWorkspace({
 
         const ws = Blockly.inject(containerRef.current, {
             renderer: 'zelos',
+            theme: SimplyBlocksDarkTheme,
             toolbox: SCRATCH_TOOLBOX,
             zoom: {
                 controls: true,
@@ -102,7 +104,7 @@ export default function BlocklyWorkspace({
             grid: {
                 spacing: 24,
                 length: 2,
-                colour: '#64748b30',
+                colour: '#33415535',
                 snap: true,
             },
             trashcan: true,

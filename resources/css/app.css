@@ -141,3 +141,152 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* ── Google Blockly Studio Dark Mode Styles ────────────────────────────────── */
+
+.blocklySvg {
+    background-color: transparent !important;
+    font-family:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif !important;
+}
+
+.blocklyMainBackground {
+    fill: #090d16 !important;
+}
+
+.blocklyToolboxDiv {
+    background-color: #0d1322 !important;
+    color: #e2e8f0 !important;
+    border-right: 1px solid #1e293b !important;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25) !important;
+    font-family:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif !important;
+    user-select: none;
+    padding-top: 6px !important;
+}
+
+.blocklyTreeRow {
+    padding: 7px 12px !important;
+    margin: 3px 6px !important;
+    border-radius: 6px !important;
+    transition: all 0.15s ease !important;
+    cursor: pointer !important;
+    border: 1px solid transparent !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.blocklyTreeRow:hover {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+.blocklyTreeSelected {
+    background-color: #1e293b !important;
+    border-color: #3b82f640 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+.blocklyTreeLabel {
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+    color: #cbd5e1 !important;
+    letter-spacing: 0.02em !important;
+    line-height: 18px !important;
+}
+
+.blocklyTreeSelected .blocklyTreeLabel {
+    color: #ffffff !important;
+}
+
+.blocklyTreeIcon {
+    width: 9px !important;
+    height: 9px !important;
+    border-radius: 50% !important;
+    margin-right: 8px !important;
+    vertical-align: middle !important;
+    display: inline-block !important;
+}
+
+.blocklyFlyoutBackground {
+    fill: #090d16 !important;
+    fill-opacity: 0.98 !important;
+    stroke: #1e293b !important;
+    stroke-width: 1px !important;
+}
+
+.blocklyFlyout {
+    filter: drop-shadow(4px 0 16px rgba(0, 0, 0, 0.45)) !important;
+}
+
+.blocklyScrollbarHandle {
+    fill: #334155 !important;
+    fill-opacity: 0.6 !important;
+    rx: 4px !important;
+    ry: 4px !important;
+}
+
+.blocklyScrollbarHandle:hover {
+    fill: #475569 !important;
+    fill-opacity: 0.9 !important;
+}
+
+/* Blockly Dropdown Menus and Context Menus */
+.blocklyDropDownDiv {
+    background-color: #0f172a !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    box-shadow:
+        0 10px 25px -5px rgba(0, 0, 0, 0.5),
+        0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+    padding: 4px !important;
+    color: #f1f5f9 !important;
+}
+
+.blocklyWidgetDiv .blocklyHtmlInput {
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
+    border: 1px solid #3b82f6 !important;
+    border-radius: 6px !important;
+    font-family:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+}
+
+.blocklyMenu,
+.blocklyContextMenu {
+    background-color: #0f172a !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    padding: 4px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.blocklyMenuItem {
+    padding: 6px 12px !important;
+    border-radius: 5px !important;
+    color: #cbd5e1 !important;
+    font-size: 12px !important;
+    font-family:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif !important;
+    cursor: pointer !important;
+    transition: background-color 0.1s ease !important;
+}
+
+.blocklyMenuItem:hover,
+.blocklyMenuItemHighlight {
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+}
+
+.blocklyZoom > image {
+    opacity: 0.75 !important;
+    transition: opacity 0.15s ease !important;
+}
+
+.blocklyZoom > image:hover {
+    opacity: 1 !important;
+}
