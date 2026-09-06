@@ -1,22 +1,67 @@
 import React from 'react';
-import { BlockDefinition, BlockInstance } from './types';
-import { getBlockDefinition } from './definitions';
+import type { BlockInstance } from './types';
 
 const KEY_OPTIONS = [
-    'space', 'up arrow', 'down arrow', 'left arrow', 'right arrow',
-    'any', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-].map(k => ({ label: k, value: k }));
+    'space',
+    'up arrow',
+    'down arrow',
+    'left arrow',
+    'right arrow',
+    'any',
+    'a',
+    'b',
+    'c',
+    'd',
+    'e',
+    'f',
+    'g',
+    'h',
+    'i',
+    'j',
+    'k',
+    'l',
+    'm',
+    'n',
+    'o',
+    'p',
+    'q',
+    'r',
+    's',
+    't',
+    'u',
+    'v',
+    'w',
+    'x',
+    'y',
+    'z',
+    '0',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+].map((k) => ({ label: k, value: k }));
 
 interface BlockRendererProps {
     block: BlockInstance;
     isDragging?: boolean;
-    onFieldChange?: (fieldName: string, value: string | number | boolean) => void;
+    onFieldChange?: (
+        fieldName: string,
+        value: string | number | boolean,
+    ) => void;
     onInputRemove?: (blockId: string, slotName: string) => void;
 }
 
-export default function BlockRenderer({ block, isDragging = false, onFieldChange, onInputRemove }: BlockRendererProps) {
+export default function BlockRenderer({
+    block,
+    isDragging = false,
+    onFieldChange,
+    onInputRemove,
+}: BlockRendererProps) {
     const def = block.definition;
     const color = def.color;
 
@@ -24,32 +69,40 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
         if (block.definition.hasContainer) {
             const innerHeight = Math.max(calcSectionHeight(block.children), 60);
             const tabHeight = block.definition.hasTab ? 8 : 0;
+
             return 40 + innerHeight + 40 + tabHeight;
         }
+
         return block.definition.hasTab ? 48 : 40;
     };
 
     const calcSectionHeight = (children: BlockInstance[]) => {
-        if (children.length === 0) return 60;
+        if (children.length === 0) {
+            return 60;
+        }
+
         let h = 0;
-        children.forEach(child => {
+        children.forEach((child) => {
             const ch = calcBlockHeight(child);
             const overlap = child.definition.hasTab ? 8 : 0;
             h += ch - overlap;
         });
+
         return Math.max(h, 60);
     };
 
-    const containerHeight = def.hasContainer ? calcSectionHeight(block.children) : 0;
+    const containerHeight = def.hasContainer
+        ? calcSectionHeight(block.children)
+        : 0;
     const elseHeight = def.hasElse ? calcSectionHeight(block.elseChildren) : 0;
 
     // Generate SVG path.
     // Clockwise winding. Notch = slot on top edge (drops DOWN). Tab = peg on bottom edge (drops DOWN).
     const generatePath = () => {
         const w = 200;
-        const bh = 40;  // header/row height
-        const r = 4;    // corner radius
-        const nx = 16;  // notch/tab x offset from left
+        const bh = 40; // header/row height
+        const r = 4; // corner radius
+        const nx = 16; // notch/tab x offset from left
 
         // Notch: slot in top edge at nx going left->right: arrive at nx, drop 8, go right 8, up 8
         const notchAt = (y: number) => `L ${nx},${y} l 0,8 l 8,0 l 0,-8`;
@@ -57,7 +110,8 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
         const tabAt = (y: number) => `L ${nx + 8},${y} l 0,8 l -8,0 l 0,-8`;
         // Inner notch: children are offset +12 from parent x, so their top notch is at nx+12=28
         const childOffset = 12;
-        const innerNotchAt = (_armX: number, y: number) => `L ${nx + childOffset},${y} l 8,0 l 0,8 l -8,0 l 0,-8`;
+        const innerNotchAt = (_armX: number, y: number) =>
+            `L ${nx + childOffset},${y} l 8,0 l 0,8 l -8,0 l 0,-8`;
 
         let d = '';
 
@@ -73,12 +127,15 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
         if (!def.hasContainer) {
             // ── Regular block ──────────────────────────────────────────────
             d += ` L ${w},${bh - r} Q ${w},${bh} ${w - r},${bh}`;
+
             if (def.hasTab) {
                 d += ` ${tabAt(bh)} L ${r},${bh} Q 0,${bh} 0,${bh - r}`;
             } else {
                 d += ` L ${r},${bh} Q 0,${bh} 0,${bh - r}`;
             }
+
             d += ` L 0,${r} Q 0,0 ${r},0 Z`;
+
             return d;
         }
 
@@ -151,35 +208,50 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
 
         // Footer: right side down to corner, bottom edge (right→left), left side up
         d += ` L ${w},${totalH - r} Q ${w},${totalH} ${w - r},${totalH}`;
+
         if (def.hasTab) {
             d += ` ${tabAt(totalH)} L ${r},${totalH} Q 0,${totalH} 0,${totalH - r}`;
         } else {
             d += ` L ${r},${totalH} Q 0,${totalH} 0,${totalH - r}`;
         }
+
         // Left side straight up to top-left
         d += ` L 0,${r} Q 0,0 ${r},0 Z`;
+
         return d;
     };
 
     const renderLabelParts = () => {
         const parts: (string | React.ReactNode)[] = [];
-        let label = def.label;
+        const label = def.label;
         let lastIndex = 0;
 
         // Sort fields and inputs by their position in the label
-        const allPlaceholders: { index: number; type: 'field' | 'input'; name: string }[] = [];
+        const allPlaceholders: {
+            index: number;
+            type: 'field' | 'input';
+            name: string;
+        }[] = [];
 
         const fieldCount = def.fields?.length ?? 0;
 
         if (def.fields) {
             def.fields.forEach((field, idx) => {
-                allPlaceholders.push({ index: idx + 1, type: 'field', name: field.name });
+                allPlaceholders.push({
+                    index: idx + 1,
+                    type: 'field',
+                    name: field.name,
+                });
             });
         }
 
         if (def.inputs) {
             def.inputs.forEach((inputName, idx) => {
-                allPlaceholders.push({ index: fieldCount + idx + 1, type: 'input', name: inputName });
+                allPlaceholders.push({
+                    index: fieldCount + idx + 1,
+                    type: 'input',
+                    name: inputName,
+                });
             });
         }
 
@@ -194,13 +266,18 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                 parts.push(label.slice(lastIndex, placeholderIndex));
 
                 if (placeholder.type === 'field') {
-                    const field = def.fields!.find(f => f.name === placeholder.name);
+                    const field = def.fields!.find(
+                        (f) => f.name === placeholder.name,
+                    );
+
                     if (field) {
-                        const value = block.fields[field.name] ?? field.value ?? '';
+                        const value =
+                            block.fields[field.name] ?? field.value ?? '';
                         parts.push(renderField(field, value));
                     }
                 } else if (placeholder.type === 'input') {
                     const inputBlock = block.inputs[placeholder.name];
+
                     if (inputBlock) {
                         parts.push(
                             <div
@@ -211,15 +288,28 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                                 onMouseDown={(e) => {
                                     e.stopPropagation();
                                     const target = e.target as Node;
-                                    const targetEl = target instanceof Element ? target : target.parentElement;
-                                    if (targetEl?.closest('input, select, textarea, [contenteditable]')) {
+                                    const targetEl =
+                                        target instanceof Element
+                                            ? target
+                                            : target.parentElement;
+
+                                    if (
+                                        targetEl?.closest(
+                                            'input, select, textarea, [contenteditable]',
+                                        )
+                                    ) {
                                         return;
                                     }
+
                                     onInputRemove?.(block.id, placeholder.name);
                                 }}
                             >
-                                <BlockRenderer block={inputBlock} onFieldChange={onFieldChange} onInputRemove={onInputRemove} />
-                            </div>
+                                <BlockRenderer
+                                    block={inputBlock}
+                                    onFieldChange={onFieldChange}
+                                    onInputRemove={onInputRemove}
+                                />
+                            </div>,
                         );
                     } else {
                         // Empty input slot — shape hint matches what can snap in
@@ -228,7 +318,7 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                                 key={placeholder.name}
                                 data-input-slot={placeholder.name}
                                 data-parent-block-id={block.id}
-                                className="inline-flex items-center justify-center align-middle mx-0.5 text-white/60 text-[9px] select-none"
+                                className="mx-0.5 inline-flex items-center justify-center align-middle text-[9px] text-white/60 select-none"
                                 style={{
                                     width: 40,
                                     height: 20,
@@ -236,7 +326,7 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                                     borderRadius: 10,
                                     cursor: 'default',
                                 }}
-                            />
+                            />,
                         );
                     }
                 }
@@ -256,26 +346,36 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
             return (
                 <input
                     type="number"
-                    value={value}
-                    className="w-12 h-6 rounded bg-white text-black text-xs px-1"
-                    onChange={(e) => onFieldChange?.(field.name, parseFloat(e.target.value))}
+                    value={value ?? ''}
+                    className="h-6 w-12 rounded bg-white px-1 text-xs text-black"
+                    onChange={(e) => {
+                        const parsed = parseFloat(e.target.value);
+                        onFieldChange?.(
+                            field.name,
+                            Number.isFinite(parsed) ? parsed : 0,
+                        );
+                    }}
                 />
             );
         } else if (field.type === 'string') {
             return (
                 <input
                     type="text"
-                    value={value}
-                    className="w-20 h-6 rounded bg-white text-black text-xs px-1"
-                    onChange={(e) => onFieldChange?.(field.name, e.target.value)}
+                    value={value ?? ''}
+                    className="h-6 w-20 rounded bg-white px-1 text-xs text-black"
+                    onChange={(e) =>
+                        onFieldChange?.(field.name, e.target.value)
+                    }
                 />
             );
         } else if (field.type === 'dropdown') {
             return (
                 <select
-                    className="w-16 h-6 rounded bg-white text-black text-xs px-1"
+                    className="h-6 w-16 rounded bg-white px-1 text-xs text-black"
                     value={value}
-                    onChange={(e) => onFieldChange?.(field.name, e.target.value)}
+                    onChange={(e) =>
+                        onFieldChange?.(field.name, e.target.value)
+                    }
                 >
                     {field.options?.map((opt: any) => (
                         <option key={opt.value} value={opt.value}>
@@ -289,35 +389,54 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
                 <input
                     type="color"
                     value={String(value) || '#ff0000'}
-                    className="w-8 h-6 rounded cursor-pointer border-0 bg-transparent"
-                    onChange={(e) => onFieldChange?.(field.name, e.target.value)}
+                    className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent"
+                    onChange={(e) =>
+                        onFieldChange?.(field.name, e.target.value)
+                    }
                 />
             );
-        } else if (field.type === 'sprite' || field.type === 'broadcast' || field.type === 'effect' || field.type === 'mathop' || field.type === 'stopOption') {
+        } else if (
+            field.type === 'sprite' ||
+            field.type === 'broadcast' ||
+            field.type === 'effect' ||
+            field.type === 'mathop' ||
+            field.type === 'stopOption'
+        ) {
             return (
                 <select
-                    className="w-20 h-6 rounded bg-white text-black text-xs px-1"
+                    className="h-6 w-20 rounded bg-white px-1 text-xs text-black"
                     value={String(value)}
-                    onChange={(e) => onFieldChange?.(field.name, e.target.value)}
+                    onChange={(e) =>
+                        onFieldChange?.(field.name, e.target.value)
+                    }
                 >
                     {field.options?.map((opt: any) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    )) ?? <option value={String(value)}>{String(value)}</option>}
+                        <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                        </option>
+                    )) ?? (
+                        <option value={String(value)}>{String(value)}</option>
+                    )}
                 </select>
             );
         } else if (field.type === 'key') {
             return (
                 <select
-                    className="w-20 h-6 rounded bg-white text-black text-xs px-1"
+                    className="h-6 w-20 rounded bg-white px-1 text-xs text-black"
                     value={String(value)}
-                    onChange={(e) => onFieldChange?.(field.name, e.target.value)}
+                    onChange={(e) =>
+                        onFieldChange?.(field.name, e.target.value)
+                    }
                 >
                     {(field.options ?? KEY_OPTIONS).map((opt: any) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                        </option>
                     ))}
                 </select>
             );
         }
+
         return String(value);
     };
 
@@ -325,17 +444,65 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
 
     // ── Reporter block (oval) ──────────────────────────────────────────
     if (shape === 'reporter') {
-        const rw = 80; const rh = 28;
+        const rw = Math.max(
+            80,
+            Math.min(
+                280,
+                def.label.length * 7.5 + (def.inputs?.length ?? 0) * 44 + 32,
+            ),
+        );
+        const rh = 28;
+
         return (
-            <div className="relative select-none inline-block" style={{ width: rw, height: rh, opacity: isDragging ? 0.8 : 1, cursor: 'grab' }}>
-                <svg width={rw} height={rh} className="absolute inset-0 pointer-events-none" style={{ transform: 'translate(1px,1px)' }}>
-                    <rect x="0" y="0" width={rw} height={rh} rx={rh / 2} ry={rh / 2} fill="rgba(0,0,0,0.15)" />
+            <div
+                className="relative inline-block select-none"
+                style={{
+                    width: rw,
+                    height: rh,
+                    opacity: isDragging ? 0.8 : 1,
+                    cursor: 'grab',
+                }}
+            >
+                <svg
+                    width={rw}
+                    height={rh}
+                    className="pointer-events-none absolute inset-0"
+                    style={{ transform: 'translate(1px,1px)' }}
+                >
+                    <rect
+                        x="0"
+                        y="0"
+                        width={rw}
+                        height={rh}
+                        rx={rh / 2}
+                        ry={rh / 2}
+                        fill="rgba(0,0,0,0.15)"
+                    />
                 </svg>
-                <svg width={rw} height={rh} className="absolute inset-0 pointer-events-none">
-                    <rect x="0" y="0" width={rw} height={rh} rx={rh / 2} ry={rh / 2} fill={color} stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+                <svg
+                    width={rw}
+                    height={rh}
+                    className="pointer-events-none absolute inset-0"
+                >
+                    <rect
+                        x="0"
+                        y="0"
+                        width={rw}
+                        height={rh}
+                        rx={rh / 2}
+                        ry={rh / 2}
+                        fill={color}
+                        stroke="rgba(0,0,0,0.2)"
+                        strokeWidth="1"
+                    />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center px-3 text-white text-xs font-medium gap-1"
-                    style={{ fontFamily: "'Instrument Sans', ui-sans-serif, system-ui, sans-serif" }}>
+                <div
+                    className="absolute inset-0 flex items-center justify-center gap-1 px-3 text-xs font-medium whitespace-nowrap text-white"
+                    style={{
+                        fontFamily:
+                            "'Instrument Sans', ui-sans-serif, system-ui, sans-serif",
+                    }}
+                >
                     {renderLabelParts()}
                 </div>
             </div>
@@ -344,19 +511,55 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
 
     // ── Boolean block (hexagon / pointed oval) ─────────────────────────
     if (shape === 'boolean') {
-        const bw = 80; const bh2 = 28; const pt = 8;
+        const bw = Math.max(
+            80,
+            Math.min(
+                280,
+                def.label.length * 7.5 + (def.inputs?.length ?? 0) * 44 + 32,
+            ),
+        );
+        const bh2 = 28;
+        const pt = 8;
         // Hexagon path: left point, top-left corner, top-right corner, right point, bottom-right, bottom-left
         const hexPath = `M ${pt},0 L ${bw - pt},0 L ${bw},${bh2 / 2} L ${bw - pt},${bh2} L ${pt},${bh2} L 0,${bh2 / 2} Z`;
+
         return (
-            <div className="relative select-none inline-block" style={{ width: bw, height: bh2, opacity: isDragging ? 0.8 : 1, cursor: 'grab' }}>
-                <svg width={bw} height={bh2} className="absolute inset-0 pointer-events-none" style={{ transform: 'translate(1px,1px)' }}>
+            <div
+                className="relative inline-block select-none"
+                style={{
+                    width: bw,
+                    height: bh2,
+                    opacity: isDragging ? 0.8 : 1,
+                    cursor: 'grab',
+                }}
+            >
+                <svg
+                    width={bw}
+                    height={bh2}
+                    className="pointer-events-none absolute inset-0"
+                    style={{ transform: 'translate(1px,1px)' }}
+                >
                     <path d={hexPath} fill="rgba(0,0,0,0.15)" />
                 </svg>
-                <svg width={bw} height={bh2} className="absolute inset-0 pointer-events-none">
-                    <path d={hexPath} fill={color} stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+                <svg
+                    width={bw}
+                    height={bh2}
+                    className="pointer-events-none absolute inset-0"
+                >
+                    <path
+                        d={hexPath}
+                        fill={color}
+                        stroke="rgba(0,0,0,0.2)"
+                        strokeWidth="1"
+                    />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center px-3 text-white text-xs font-medium gap-1"
-                    style={{ fontFamily: "'Instrument Sans', ui-sans-serif, system-ui, sans-serif" }}>
+                <div
+                    className="absolute inset-0 flex items-center justify-center gap-1 px-3 text-xs font-medium whitespace-nowrap text-white"
+                    style={{
+                        fontFamily:
+                            "'Instrument Sans', ui-sans-serif, system-ui, sans-serif",
+                    }}
+                >
                     {renderLabelParts()}
                 </div>
             </div>
@@ -366,8 +569,8 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
     const tabHeight = def.hasTab ? 8 : 0;
     const totalHeight = def.hasContainer
         ? def.hasElse
-            ? 40 + containerHeight + 40 + elseHeight + 40 + tabHeight  // E-block
-            : 40 + containerHeight + 40 + tabHeight                    // C-block
+            ? 40 + containerHeight + 40 + elseHeight + 40 + tabHeight // E-block
+            : 40 + containerHeight + 40 + tabHeight // C-block
         : 40 + tabHeight;
 
     return (
@@ -384,20 +587,17 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
             <svg
                 width="200"
                 height={totalHeight}
-                className="absolute inset-0 pointer-events-none"
+                className="pointer-events-none absolute inset-0"
                 style={{ transform: 'translate(2px, 2px)' }}
             >
-                <path
-                    d={generatePath()}
-                    fill="rgba(0,0,0,0.15)"
-                />
+                <path d={generatePath()} fill="rgba(0,0,0,0.15)" />
             </svg>
 
             {/* Main block */}
             <svg
                 width="200"
                 height={totalHeight}
-                className="absolute inset-0 pointer-events-none"
+                className="pointer-events-none absolute inset-0"
             >
                 <path
                     d={generatePath()}
@@ -409,9 +609,10 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
 
             {/* Text label - positioned in header for container blocks */}
             <div
-                className="absolute flex items-center px-3 text-white text-sm font-medium gap-1"
+                className="absolute flex items-center gap-1 px-3 text-sm font-medium text-white"
                 style={{
-                    fontFamily: "'Instrument Sans', ui-sans-serif, system-ui, sans-serif",
+                    fontFamily:
+                        "'Instrument Sans', ui-sans-serif, system-ui, sans-serif",
                     top: def.hasContainer ? 2 : 0,
                     height: def.hasContainer ? 36 : '100%',
                     left: 0,
@@ -424,9 +625,10 @@ export default function BlockRenderer({ block, isDragging = false, onFieldChange
             {/* Else label row - rendered on the SVG shape, children positioned by workspace */}
             {def.hasElse && (
                 <div
-                    className="absolute flex items-center px-3 text-white text-sm font-medium pointer-events-none"
+                    className="pointer-events-none absolute flex items-center px-3 text-sm font-medium text-white"
                     style={{
-                        fontFamily: "'Instrument Sans', ui-sans-serif, system-ui, sans-serif",
+                        fontFamily:
+                            "'Instrument Sans', ui-sans-serif, system-ui, sans-serif",
                         top: 40 + containerHeight,
                         height: 40,
                         left: 0,

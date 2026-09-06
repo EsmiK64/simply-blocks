@@ -6,7 +6,7 @@
  * Limitation: costume/sound assets are not re-embedded (use parseSB3File assets).
  */
 
-import { BlockInstance } from './types';
+import type { BlockInstance } from './types';
 
 // ── SB3 output types ──────────────────────────────────────────────────────────
 
@@ -37,7 +37,8 @@ function serialiseBlock(
     parentId: string | null,
     output: SB3BlocksMap,
     isTopLevel = false,
-    topX = 0, topY = 0
+    topX = 0,
+    topY = 0,
 ): string {
     const id = makeStableId(block);
     const def = block.definition;
@@ -71,13 +72,19 @@ function serialiseBlock(
     if (block.children.length > 0) {
         // Chain children together via next
         const chainedFirst = chainBlocks(block.children, id, output);
-        if (chainedFirst) out.inputs['SUBSTACK'] = [2, chainedFirst];
+
+        if (chainedFirst) {
+            out.inputs['SUBSTACK'] = [2, chainedFirst];
+        }
     }
 
     // Serialise SUBSTACK2 (else children for E-blocks)
     if (block.elseChildren.length > 0) {
         const chainedFirst = chainBlocks(block.elseChildren, id, output);
-        if (chainedFirst) out.inputs['SUBSTACK2'] = [2, chainedFirst];
+
+        if (chainedFirst) {
+            out.inputs['SUBSTACK2'] = [2, chainedFirst];
+        }
     }
 
     output[id] = out;
@@ -91,20 +98,23 @@ function serialiseBlock(
     return id;
 }
 
-function chainBlocks(
+export function chainBlocks(
     blocks: BlockInstance[],
     parentId: string,
-    output: SB3BlocksMap
+    output: SB3BlocksMap,
 ): string | null {
-    if (blocks.length === 0) return null;
+    if (blocks.length === 0) {
+        return null;
+    }
 
-    // Link them as a chain
-    const chained: BlockInstance[] = blocks.map((b, i) => ({
-        ...b,
-        next: blocks[i + 1] ?? null,
-    }));
+    // Build the chain backwards so each block points to the already-chained tail
+    let tail: BlockInstance | null = null;
 
-    return serialiseBlock(chained[0], parentId, output);
+    for (let i = blocks.length - 1; i >= 0; i--) {
+        tail = { ...blocks[i], next: tail };
+    }
+
+    return tail ? serialiseBlock(tail, parentId, output) : null;
 }
 
 // ── Sprite serialisation ──────────────────────────────────────────────────────
@@ -133,7 +143,7 @@ export interface SB3SpriteInput {
 export function serialiseTarget(sprite: SB3SpriteInput): object {
     const blocks: SB3BlocksMap = {};
 
-    sprite.scripts.forEach(script => {
+    sprite.scripts.forEach((script) => {
         serialiseBlock(script, null, blocks, true, script.x, script.y);
     });
 
@@ -172,7 +182,7 @@ export function serialiseTarget(sprite: SB3SpriteInput): object {
 
 export function serialiseProject(
     sprites: SB3SpriteInput[],
-    extensions: string[] = []
+    extensions: string[] = [],
 ): object {
     return {
         targets: sprites.map(serialiseTarget),
@@ -191,9 +201,9 @@ export function serialiseProject(
 export async function downloadAsSB3(
     sprites: SB3SpriteInput[],
     filename = 'project.sb3',
-    extensions: string[] = []
+    extensions: string[] = [],
 ): Promise<void> {
-    const fflate = await import('fflate' as any);
+    const fflate = await import('fflate');
 
     const projectJson = JSON.stringify(serialiseProject(sprites, extensions));
     const projectBytes = new TextEncoder().encode(projectJson);
@@ -204,11 +214,17 @@ export async function downloadAsSB3(
 
     const zipped: Uint8Array = await new Promise((resolve, reject) => {
         fflate.zip(zipInput, (err: any, data: Uint8Array) => {
-            if (err) reject(err); else resolve(data);
+            if (err) {
+                reject(err);
+            } else {
+                resolve(data);
+            }
         });
     });
 
-    const blob = new Blob([zipped as Uint8Array<ArrayBuffer>], { type: 'application/zip' });
+    const blob = new Blob([zipped as Uint8Array<ArrayBuffer>], {
+        type: 'application/zip',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
